@@ -58,6 +58,11 @@ dependencies = [
 [[package]]
 name = "task_graph"
 version = "0.1.0"
+dependencies = [
+ "bevy_task_graph",
+ "graph",
+ "macros",
+]
 
 [[package]]
 name = "unicode-ident"
