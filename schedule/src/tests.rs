@@ -291,3 +291,34 @@ fn nested_schedule_composition() {
     runtime.resolve_task(&'P'); // last task before Exit
     assert_eq!(*q.lock().unwrap(), vec![('X', Event::Started)]);
 }
+
+#[test]
+fn merge_into_parallel_set() {
+    // Graph: (a | b) -> c
+    let mut g = Schedule::<char, Building>::new();
+    declare_tags!(A, B, C);
+    add_tasks! {
+          g,
+          a: A, b: B, c: C,
+    };
+    g.add_dep(a, c);
+    g.add_dep(b, c);
+
+    // Graph: x -> y
+    let mut h = Schedule::<char, Building>::new();
+    declare_tags!(X, Y);
+    add_tasks!(h, x: X, y: Y);
+    h.add_dep(x, y);
+
+    // Graph: (a | b) -> x -> y -> c
+    let _h_leaves = g.merge(h, vec![a, b]);
+
+    let order: Vec<&'static str> = g
+        .sort_ordered()
+        .unwrap()
+        .iter()
+        .map(|&id| g.node_meta[id].type_name)
+        .collect();
+
+    assert_eq!(order, vec!["A", "B", "X", "Y", "C"])
+}
