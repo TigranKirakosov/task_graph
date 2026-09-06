@@ -234,3 +234,60 @@ fn lifecycle_hooks() {
         ]
     };
 }
+
+#[test]
+fn nested_schedule_composition() {
+    let mut room = Schedule::<char, Building>::new();
+    declare_tags!(Enter, Exit);
+    add_tasks! {
+          room,
+          enter: Enter, exit: Exit,
+    };
+    room.add_dep(enter, exit);
+
+    let mut combat = Schedule::<char, Building>::new();
+    declare_tags!(Spawn, Fight);
+    add_tasks! {
+          combat,
+          spawn: Spawn, fight: Fight,
+    };
+    combat.add_dep(spawn, fight);
+
+    let mut loot_room = Schedule::<char, Building>::new();
+    declare_tags!(RollLoot, PickTreasure);
+    add_tasks! {
+          loot_room,
+          roll: RollLoot, pick: PickTreasure,
+    };
+    loot_room.add_dep(roll, pick);
+
+    let combat_leaves = room.merge(combat, vec![enter]);
+    let _loot_room_leaves = room.merge(loot_room, combat_leaves);
+
+    let mut runtime = room.build(|meta| match meta.type_name {
+        "Enter" => 'E',
+        "Spawn" => 'S',
+        "Fight" => 'F',
+        "RollLoot" => 'L',
+        "PickTreasure" => 'P',
+        "Exit" => 'X',
+        _ => unreachable!(),
+    });
+
+    let q = Arc::new(Mutex::new(Vec::new()));
+    let q_clone = q.clone();
+    runtime.subscribe::<Exit>(move |id, event| {
+        q_clone.lock().unwrap().push((id, event));
+    });
+
+    runtime.init();
+    runtime.resolve_task(&'E');
+    runtime.resolve_task(&'S');
+    runtime.resolve_task(&'F');
+    runtime.resolve_task(&'L');
+
+    assert!(q.lock().unwrap().is_empty(), "Exit blocked");
+
+    runtime.resolve_task(&'P'); // last task before Exit
+    assert_eq!(*q.lock().unwrap(), vec![('X', Event::Started)]);
+}
