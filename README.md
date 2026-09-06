@@ -1,15 +1,15 @@
 # Task Graph
 
-A declarative, event-driven DAG workflow orchestration engine.
+A declarative, event-driven task scheduler for Rust.
 
 # Planned Features
-- fluent proc-macro [DSL](DSL.md) with fully preserved Rust intellisense which does:
-    - provide error spans
-    - maintain DAG property
-- declare and compose parametrized schedules at compile time
-- generic lifecycle hooks
-- graph visualizer
-- Bevy plugin integration
+- [ ] fluent proc-macro [DSL](DSL.md) which:
+    - [ ] preserves intellisense
+    - [ ] provides precise compilation error spans
+    - [ ] prevents graph cycles at compile tile
+- [ ] compile-time schedule composition
+- [ ] graph visualizer
+- [ ] Bevy plugin integration
 
 ## Syntax Overview
 

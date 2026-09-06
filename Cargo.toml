@@ -4,7 +4,7 @@ authors.workspace = true
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-# rust-version.workspace = true
+rust-version.workspace = true
 
 [workspace.package]
 authors = ["Tigran Kirakosov <tkirakosov96@gmail.com>"]
@@ -16,12 +16,12 @@ rust-version = "1.95.0"
 [workspace]
 resolver = "2"
 members = [
-    "graph",
+    "schedule",
     "macros",
     "bevy_task_graph",
 ]
 
 [dependencies]
-graph = { path = "graph", version = "0.1.0" }
+schedule = { path = "schedule", version = "0.1.0" }
 macros = { path = "macros", version = "0.1.0" }
 bevy_task_graph = { path = "bevy_task_graph", version = "0.1.0" }

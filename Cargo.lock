@@ -7,10 +7,6 @@ name = "bevy_task_graph"
 version = "0.1.0"
 
 [[package]]
-name = "graph"
-version = "0.1.0"
-
-[[package]]
 name = "macros"
 version = "0.1.0"
 dependencies = [
@@ -45,6 +41,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "schedule"
+version = "0.1.0"
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -60,8 +60,8 @@ name = "task_graph"
 version = "0.1.0"
 dependencies = [
  "bevy_task_graph",
- "graph",
  "macros",
+ "schedule",
 ]
 
 [[package]]
