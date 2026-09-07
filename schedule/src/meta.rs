@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use crate::schedule::TaskMarker;
+use crate::TaskMarker;
 
 pub(crate) struct Meta {
     pub(crate) type_id: TypeId,

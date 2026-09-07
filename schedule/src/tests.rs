@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use super::builder::*;
-use super::schedule::*;
+use crate::Event;
+use crate::graph::*;
+use crate::schedule::*;
 
 macro_rules! declare_tags {
     ($($type:ident),* $(,)?) => {
@@ -11,41 +12,39 @@ macro_rules! declare_tags {
     };
 }
 
-macro_rules! add_tasks {
+macro_rules! add_nodes {
     ($graph:expr, $($tag:ident : $type:ty),* $(,)?) => {
         $(
-            let $tag = $graph.add_task::<$type>();
+            let $tag = $graph.add_node::<$type>();
         )*
     };
 }
 
 #[test]
 fn simple_graph() {
-    let mut schedule = Schedule::<char, Building>::new();
+    let mut g = Graph::new();
     declare_tags!(A, B, C, D, E, F);
-    add_tasks!(
-        schedule,
+    add_nodes!(
+        g,
         a: A, b: B, c: C,
         d: D, e: E, f: F
     );
 
-    schedule.add_dep(a, b);
-    schedule.add_dep(b, c);
-    schedule.add_dep(c, d);
-    schedule.add_dep(d, e);
-    schedule.add_dep(e, f);
+    g.add_edge(a, b);
+    g.add_edge(b, c);
+    g.add_edge(c, d);
+    g.add_edge(d, e);
+    g.add_edge(e, f);
 
     assert_eq!(
-        schedule
-            .roots()
-            .map(|id| schedule.node_meta[id].type_name)
+        g.roots()
+            .map(|id| g.node_meta[id].type_name)
             .collect::<Vec<_>>(),
         vec!["A"]
     );
     assert_eq!(
-        schedule
-            .leaves()
-            .map(|id| schedule.node_meta[id].type_name)
+        g.leaves()
+            .map(|id| g.node_meta[id].type_name)
             .collect::<Vec<_>>(),
         vec!["F"]
     );
@@ -53,20 +52,20 @@ fn simple_graph() {
 
 #[test]
 fn topological_sort() {
-    let mut g = Schedule::<char, Building>::new();
+    let mut g = Graph::new();
     declare_tags!(A, B, C, D, E, F);
-    add_tasks!(
+    add_nodes!(
         g,
         a: A, b: B, c: C,
         d: D, e: E, f: F
     );
 
-    g.add_dep(a, b);
-    g.add_dep(a, c);
-    g.add_dep(a, e);
-    g.add_dep(b, d);
-    g.add_dep(c, d);
-    g.add_dep(e, f);
+    g.add_edge(a, b);
+    g.add_edge(a, c);
+    g.add_edge(a, e);
+    g.add_edge(b, d);
+    g.add_edge(c, d);
+    g.add_edge(e, f);
 
     assert_eq!(
         g.sort_ordered()
@@ -80,17 +79,17 @@ fn topological_sort() {
 
 #[test]
 fn disjoint_sets() {
-    let mut g = Schedule::<char, Building>::new();
+    let mut g = Graph::new();
     declare_tags!(A, B, X, Y);
-    add_tasks!(g,
+    add_nodes!(g,
         a: A, b: B,
         x: X, y: Y
     );
 
     // Set 1
-    g.add_dep(a, b);
+    g.add_edge(a, b);
     // Set 2
-    g.add_dep(x, y);
+    g.add_edge(x, y);
 
     let sorted: Vec<_> = g
         .sort_ordered()
@@ -112,26 +111,26 @@ fn disjoint_sets() {
 
 #[test]
 fn cyclic_graph_returns_err() {
-    let mut g = Schedule::<char, Building>::new();
+    let mut g = Graph::new();
     declare_tags!(A, B, C);
-    add_tasks!(g, a: A, b: B, c: C);
+    add_nodes!(g, a: A, b: B, c: C);
 
     // Loop: A -> B -> C -> A
-    g.add_dep(a, b);
-    g.add_dep(b, c);
-    g.add_dep(c, a);
+    g.add_edge(a, b);
+    g.add_edge(b, c);
+    g.add_edge(c, a);
 
     assert_eq!(g.sort_ordered().err(), Some(GraphError::CycleDetected));
 }
 
 #[test]
 fn empty_and_single_node() {
-    let empty_g = Schedule::<char, Building>::new();
+    let empty_g = Graph::new();
     assert_eq!(empty_g.sort_ordered().unwrap(), vec![]);
 
-    let mut single_g = Schedule::<char, Building>::new();
+    let mut single_g = Graph::new();
     declare_tags!(A);
-    add_tasks!(single_g, a: A);
+    add_nodes!(single_g, a: A);
 
     let sorted = single_g.sort_ordered().unwrap();
     assert_eq!(sorted.len(), 1);
@@ -140,15 +139,15 @@ fn empty_and_single_node() {
 
 #[test]
 fn diamond_dependency() {
-    let mut g = Schedule::<char, Building>::new();
+    let mut g = Graph::new();
 
     declare_tags!(A, B, C, D);
-    add_tasks!(g, a: A, b: B, c: C, d: D);
+    add_nodes!(g, a: A, b: B, c: C, d: D);
 
-    g.add_dep(a, b);
-    g.add_dep(a, c);
-    g.add_dep(b, d);
-    g.add_dep(c, d);
+    g.add_edge(a, b);
+    g.add_edge(a, c);
+    g.add_edge(b, d);
+    g.add_edge(c, d);
 
     let sorted: Vec<_> = g
         .sort_ordered()
@@ -168,17 +167,17 @@ fn diamond_dependency() {
 
 #[test]
 fn lifecycle_hooks() {
-    let mut g = Schedule::<char, Building>::new();
+    let mut g = Graph::new();
     declare_tags!(A, B, C);
-    add_tasks!(
+    add_nodes!(
         g,
         a: A, b: B, c: C,
     );
 
-    g.add_dep(a, b);
-    g.add_dep(b, c);
+    g.add_edge(a, b);
+    g.add_edge(b, c);
 
-    let mut runtime = g.build(|meta| match meta.type_name {
+    let mut runtime = Schedule::<char>::from(g, |meta| match meta.type_name {
         "A" => 'A',
         "B" => 'B',
         "C" => 'C',
@@ -237,34 +236,34 @@ fn lifecycle_hooks() {
 
 #[test]
 fn nested_schedule_composition() {
-    let mut room = Schedule::<char, Building>::new();
+    let mut room = Graph::new();
     declare_tags!(Enter, Exit);
-    add_tasks! {
+    add_nodes! {
           room,
           enter: Enter, exit: Exit,
     };
-    room.add_dep(enter, exit);
+    room.add_edge(enter, exit);
 
-    let mut combat = Schedule::<char, Building>::new();
+    let mut combat = Graph::new();
     declare_tags!(Spawn, Fight);
-    add_tasks! {
+    add_nodes! {
           combat,
           spawn: Spawn, fight: Fight,
     };
-    combat.add_dep(spawn, fight);
+    combat.add_edge(spawn, fight);
 
-    let mut loot_room = Schedule::<char, Building>::new();
+    let mut loot_room = Graph::new();
     declare_tags!(RollLoot, PickTreasure);
-    add_tasks! {
+    add_nodes! {
           loot_room,
           roll: RollLoot, pick: PickTreasure,
     };
-    loot_room.add_dep(roll, pick);
+    loot_room.add_edge(roll, pick);
 
     let combat_leaves = room.merge(combat, vec![enter]);
     let _loot_room_leaves = room.merge(loot_room, combat_leaves);
 
-    let mut runtime = room.build(|meta| match meta.type_name {
+    let mut runtime = Schedule::from(room, |meta| match meta.type_name {
         "Enter" => 'E',
         "Spawn" => 'S',
         "Fight" => 'F',
@@ -294,23 +293,23 @@ fn nested_schedule_composition() {
 
 #[test]
 fn merge_into_parallel_set() {
-    // Graph: (a | b) -> c
-    let mut g = Schedule::<char, Building>::new();
+    // (a | b) -> c
+    let mut g = Graph::new();
     declare_tags!(A, B, C);
-    add_tasks! {
+    add_nodes! {
           g,
           a: A, b: B, c: C,
     };
-    g.add_dep(a, c);
-    g.add_dep(b, c);
+    g.add_edge(a, c);
+    g.add_edge(b, c);
 
-    // Graph: x -> y
-    let mut h = Schedule::<char, Building>::new();
+    // x -> y
+    let mut h = Graph::new();
     declare_tags!(X, Y);
-    add_tasks!(h, x: X, y: Y);
-    h.add_dep(x, y);
+    add_nodes!(h, x: X, y: Y);
+    h.add_edge(x, y);
 
-    // Graph: (a | b) -> x -> y -> c
+    // (a | b) -> x -> y -> c
     let _h_leaves = g.merge(h, vec![a, b]);
 
     let order: Vec<&'static str> = g

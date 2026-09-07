@@ -1,40 +1,106 @@
-use std::any::TypeId;
+use std::sync::Arc;
+use std::{any::TypeId, collections::HashMap};
 
-use crate::{lifecycle::Listener, meta::Meta};
+use crate::graph::Graph;
+use crate::meta::Meta;
+use crate::{Event, ExternId, InternId, TaskMarker};
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum GraphError {
-    CycleDetected,
+pub(crate) struct Schedule<I: ExternId> {
+    pub(crate) graph: Graph,
+    pub(crate) in_degree: Vec<usize>,
+    pub(crate) listeners: HashMap<TypeId, Vec<Box<dyn Listener<I>>>>,
+    pub(crate) extern_to_local: HashMap<I, InternId>,
+    pub(crate) local_to_extern: Vec<I>,
 }
 
-pub(crate) trait TaskMarker: 'static {}
-impl<T: 'static> TaskMarker for T {}
-
-pub(crate) type InternId = usize;
-
-pub(crate) trait ExternId: std::hash::Hash + Eq + Clone + Send + Sync + 'static {}
-impl<T: std::hash::Hash + Eq + Clone + Send + Sync + 'static> ExternId for T {}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum Event {
-    Started,
-    Resolved,
-}
-
-pub(crate) struct Schedule<I, S>
+impl<I> Schedule<I>
 where
     I: ExternId,
-    S: 'static,
 {
-    pub(crate) listeners: std::collections::HashMap<TypeId, Vec<Box<dyn Listener<I>>>>,
+    pub(crate) fn from(graph: Graph, provider: fn(&Meta) -> I) -> Self {
+        let mut schedule = Self {
+            in_degree: graph.in_degree.clone(),
+            graph,
+            listeners: HashMap::new(),
+            extern_to_local: HashMap::new(),
+            local_to_extern: Vec::new(),
+        };
 
-    /// Empty before transition to [Runtime]
-    pub(crate) extern_to_local: std::collections::HashMap<I, InternId>,
-    /// Empty before transition to [Runtime]
-    pub(crate) local_to_extern: Vec<I>,
+        for (task_id, meta) in schedule.graph.node_meta.iter().enumerate() {
+            let extern_id = provider(meta);
+            schedule.local_to_extern.push(extern_id.clone());
+            schedule.extern_to_local.insert(extern_id, task_id);
+        }
 
-    pub(crate) in_deg: Vec<usize>,
-    pub(crate) adj: Vec<Vec<InternId>>,
-    pub(crate) node_meta: Vec<Meta>,
-    pub(crate) _marker: std::marker::PhantomData<S>,
+        schedule
+    }
+
+    pub(crate) fn init(&mut self) {
+        for root in self.graph.roots().collect::<Vec<_>>() {
+            self.notify(root, Event::Started);
+        }
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.in_degree.copy_from_slice(&self.graph.in_degree);
+    }
+
+    pub(crate) fn subscribe<T: TaskMarker>(&mut self, listener: impl Listener<I>) {
+        let type_id = TypeId::of::<T>();
+        self.listeners
+            .entry(type_id)
+            .or_default()
+            .push(Box::new(listener));
+    }
+
+    fn notify(&self, id: InternId, cycle: Event) {
+        let Meta { type_id, .. } = &self.graph.node_meta[id];
+
+        if let Some(typed_observers) = self.listeners.get(type_id) {
+            let extern_id = &self.local_to_extern[id];
+            for obs in typed_observers {
+                obs.notify(extern_id.clone(), cycle);
+            }
+        }
+    }
+
+    pub(crate) fn resolve_task(&mut self, id: &I) {
+        let &node_id = self.extern_to_local.get(id).unwrap();
+        let mut queue = vec![(node_id, Event::Resolved)];
+
+        for &nbr in &self.graph.adj[node_id] {
+            self.in_degree[nbr] = self.in_degree[nbr].saturating_sub(1);
+            if self.in_degree[nbr] == 0 {
+                queue.push((nbr, Event::Started));
+            }
+        }
+
+        for (id, cycle) in queue {
+            self.notify(id, cycle);
+        }
+    }
+}
+
+pub(crate) trait Listener<I: ExternId>: Send + Sync + 'static {
+    fn notify(&self, id: I, event: Event);
+}
+
+impl<I, F> Listener<I> for F
+where
+    I: ExternId,
+    F: Fn(I, Event) + Send + Sync + 'static,
+{
+    fn notify(&self, id: I, cycle: Event) {
+        self(id, cycle);
+    }
+}
+
+impl<I, O> Listener<I> for Arc<O>
+where
+    I: ExternId,
+    O: Listener<I> + ?Sized,
+{
+    fn notify(&self, id: I, cycle: Event) {
+        (**self).notify(id, cycle);
+    }
 }
