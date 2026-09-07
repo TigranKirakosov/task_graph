@@ -1,5 +1,6 @@
-use quote::ToTokens;
 use syn::{Ident, Type};
+
+use crate::task_graph::format_type;
 
 #[derive(Debug)]
 pub(super) struct TaskGraphAst {
@@ -51,7 +52,7 @@ pub(super) enum SchedulingMode {
 
 impl std::fmt::Debug for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let type_string = self.typ.to_token_stream().to_string().replace(" ", "");
+        let type_string = format_type(&self.typ);
 
         f.debug_struct("Task")
             .field("var", &self.var.clone().map(|var| var.to_string()))

@@ -1,16 +1,21 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{ToTokens, quote};
+use syn::Type;
 
 mod ast;
-mod compiler;
+mod codegen;
 mod parser;
 
 pub(crate) fn task_graph(input: TokenStream) -> TokenStream {
     match parser::parse(input.into()) {
-        Ok(ast) => compiler::compile(ast),
+        Ok(ast) => codegen::generate(ast),
         Err(err) => {
             let error_msg = format!("Task graph parsing error: {:?}", err);
             quote! { compile_error!(#error_msg); }.into()
         }
     }
+}
+
+pub(crate) fn format_type(typ: &Type) -> String {
+    typ.clone().into_token_stream().to_string().replace(" ", "")
 }
