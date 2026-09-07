@@ -1,10 +1,13 @@
+use quote::ToTokens;
 use syn::{Ident, Type};
 
+#[derive(Debug)]
 pub(super) struct TaskGraphAst {
     pub(super) graphs: Vec<Graph>,
 }
 
 /// `A -> (B | [in]) -> C`
+#[derive(Debug, PartialEq)]
 pub(super) struct Graph {
     // A
     pub(super) entry: NodeExpr,
@@ -12,6 +15,7 @@ pub(super) struct Graph {
     pub(super) conns: Vec<NodeExpr>,
 }
 
+#[derive(Debug, PartialEq)]
 pub(super) enum NodeExpr {
     /// A local variable declaration
     Declaration(Task),
@@ -24,20 +28,34 @@ pub(super) enum NodeExpr {
 }
 
 /// Local task declaration signature
-/// Either full match `var: typ` (`a: TaskA`) or type only `typ` (`TaskA`)
+/// Either full match `var: typ` (`a: TaskA`) or type only (`TaskA`)
+#[derive(PartialEq)]
 pub(super) struct Task {
     pub(super) var: Option<Ident>,
     pub(super) typ: Type,
 }
 
+#[derive(Debug, PartialEq)]
 pub(super) struct GroupBlock {
     pub(super) mode: SchedulingMode,
     pub(super) graphs: Vec<Graph>,
 }
 
+#[derive(Debug, PartialEq)]
 pub(super) enum SchedulingMode {
     /// (A, B) or (A -> B)
     Sequence,
     /// (A | B | C)
     Parallel,
+}
+
+impl std::fmt::Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_string = self.typ.to_token_stream().to_string().replace(" ", "");
+
+        f.debug_struct("Task")
+            .field("var", &self.var.clone().map(|var| var.to_string()))
+            .field("typ", &type_string)
+            .finish()
+    }
 }

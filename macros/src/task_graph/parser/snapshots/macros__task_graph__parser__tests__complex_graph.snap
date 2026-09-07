@@ -1,0 +1,79 @@
+---
+source: macros/src/task_graph/parser/tests.rs
+expression: ast
+---
+TaskGraphAst {
+    graphs: [
+        Graph {
+            entry: Declaration(
+                Task {
+                    var: Some(
+                        "enter",
+                    ),
+                    typ: "Entering",
+                },
+            ),
+            conns: [
+                Declaration(
+                    Task {
+                        var: Some(
+                            "inited",
+                        ),
+                        typ: "InitScene",
+                    },
+                ),
+            ],
+        },
+        Graph {
+            entry: Binding(
+                Ident(
+                    inited,
+                ),
+            ),
+            conns: [
+                Group(
+                    GroupBlock {
+                        mode: Parallel,
+                        graphs: [
+                            Graph {
+                                entry: Declaration(
+                                    Task {
+                                        var: None,
+                                        typ: "A",
+                                    },
+                                ),
+                                conns: [],
+                            },
+                            Graph {
+                                entry: Declaration(
+                                    Task {
+                                        var: None,
+                                        typ: "B",
+                                    },
+                                ),
+                                conns: [],
+                            },
+                            Graph {
+                                entry: Declaration(
+                                    Task {
+                                        var: None,
+                                        typ: "C",
+                                    },
+                                ),
+                                conns: [],
+                            },
+                        ],
+                    },
+                ),
+                Declaration(
+                    Task {
+                        var: Some(
+                            "exit",
+                        ),
+                        typ: "Exiting",
+                    },
+                ),
+            ],
+        },
+    ],
+}

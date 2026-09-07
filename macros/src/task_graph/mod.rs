@@ -5,7 +5,7 @@ mod ast;
 mod compiler;
 mod parser;
 
-pub fn task_graph(input: TokenStream) -> TokenStream {
+pub(crate) fn task_graph(input: TokenStream) -> TokenStream {
     match parser::parse(input.into()) {
         Ok(ast) => compiler::compile(ast),
         Err(err) => {

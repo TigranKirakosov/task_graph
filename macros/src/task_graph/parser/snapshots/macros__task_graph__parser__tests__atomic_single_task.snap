@@ -1,0 +1,19 @@
+---
+source: macros/src/task_graph/parser/tests.rs
+expression: ast
+---
+TaskGraphAst {
+    graphs: [
+        Graph {
+            entry: Declaration(
+                Task {
+                    var: Some(
+                        "a",
+                    ),
+                    typ: "TaskA",
+                },
+            ),
+            conns: [],
+        },
+    ],
+}
