@@ -1,38 +1,39 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::meta::Meta;
-use crate::{InternId, TaskMarker};
+use crate::meta::{Marker, Meta};
+
+pub type NodeId = usize;
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum GraphError {
+pub enum GraphError {
     CycleDetected,
 }
 
-pub(crate) struct Graph {
+pub struct Graph {
     pub(crate) in_degree: Vec<usize>,
-    pub(crate) adj: Vec<Vec<InternId>>,
-    pub(crate) node_meta: Vec<Meta>,
+    pub(crate) adj: Vec<Vec<NodeId>>,
+    pub(crate) meta: Vec<Meta>,
 }
 
 impl Graph {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             in_degree: Vec::new(),
             adj: Vec::new(),
-            node_meta: Vec::new(),
+            meta: Vec::new(),
         }
     }
 
-    pub(crate) fn add_node<T: TaskMarker>(&mut self) -> InternId {
-        self.node_meta.push(Meta::new::<T>());
+    pub fn add_node<T: Marker>(&mut self) -> NodeId {
+        self.meta.push(Meta::new::<T>());
         self.adj.push(vec![]);
         self.in_degree.push(0);
 
-        self.node_meta.len() - 1
+        self.meta.len() - 1
     }
 
     /// Adds a dependency `a -> b` and increments `b`'s dependants count
-    pub(crate) fn add_edge(&mut self, lhs: InternId, rhs: InternId) {
+    pub fn add_edge(&mut self, lhs: NodeId, rhs: NodeId) {
         if self.adj[lhs].contains(&rhs) {
             return;
         }
@@ -56,7 +57,7 @@ impl Graph {
     ///       ├──> [x] ──> [c]
     /// [b] ──┘
     /// ```
-    pub(crate) fn merge(&mut self, sub: Graph, at: Vec<InternId>) -> Vec<InternId> {
+    pub fn merge(&mut self, sub: Graph, at: Vec<NodeId>) -> Vec<NodeId> {
         // Collect unique downstream neighbours of each node of `at` list
         // while counting broken edges
         let mut at_downstream = HashMap::new();
@@ -74,12 +75,12 @@ impl Graph {
 
         // Offset root and leaf indices of sub
         // so they stand right after last node of this graph
-        let offset = self.node_meta.len();
-        let sub_roots: Vec<InternId> = sub.roots().map(|id| id + offset).collect();
-        let sub_leaves: Vec<InternId> = sub.leaves().map(|id| id + offset).collect();
+        let offset = self.meta.len();
+        let sub_roots: Vec<NodeId> = sub.roots().map(|id| id + offset).collect();
+        let sub_leaves: Vec<NodeId> = sub.leaves().map(|id| id + offset).collect();
 
         // Extend with sub vectors
-        self.node_meta.extend(sub.node_meta);
+        self.meta.extend(sub.meta);
         self.in_degree.extend(sub.in_degree);
 
         for mut downstream in sub.adj {
@@ -112,10 +113,10 @@ impl Graph {
     }
 
     /// Kahn's topological sort
-    pub(crate) fn sort_ordered(&self) -> Result<Vec<InternId>, GraphError> {
+    pub fn sort_ordered(&self) -> Result<Vec<NodeId>, GraphError> {
         let mut order = Vec::new();
         let mut in_deg = self.in_degree.clone();
-        let mut q = VecDeque::<InternId>::from(self.roots().collect::<Vec<_>>());
+        let mut q = VecDeque::<NodeId>::from(self.roots().collect::<Vec<_>>());
 
         while let Some(id) = q.pop_front() {
             order.push(id);
@@ -134,13 +135,25 @@ impl Graph {
         Ok(order)
     }
 
-    pub(crate) fn roots(&self) -> impl Iterator<Item = InternId> {
-        let len = self.node_meta.len();
+    pub fn in_degree(&self) -> &[usize] {
+        self.in_degree.as_slice()
+    }
+
+    pub fn adj(&self) -> &[Vec<NodeId>] {
+        self.adj.as_slice()
+    }
+
+    pub fn meta(&self) -> &[Meta] {
+        self.meta.as_slice()
+    }
+
+    pub fn roots(&self) -> impl Iterator<Item = NodeId> {
+        let len = self.meta.len();
         (0..len).filter(|&id| self.in_degree[id] == 0)
     }
 
-    pub(crate) fn leaves(&self) -> impl Iterator<Item = InternId> {
-        let len = self.node_meta.len();
+    pub fn leaves(&self) -> impl Iterator<Item = NodeId> {
+        let len = self.meta.len();
         (0..len).filter(|&id| self.adj[id].is_empty())
     }
 }

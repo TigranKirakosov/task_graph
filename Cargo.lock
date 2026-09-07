@@ -3,10 +3,6 @@
 version = 4
 
 [[package]]
-name = "bevy_task_graph"
-version = "0.1.0"
-
-[[package]]
 name = "bitflags"
 version = "2.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -28,6 +24,10 @@ dependencies = [
  "libc",
  "windows-sys",
 ]
+
+[[package]]
+name = "core"
+version = "0.1.0"
 
 [[package]]
 name = "encode_unicode"
@@ -186,6 +186,7 @@ dependencies = [
 name = "schedule"
 version = "0.1.0"
 dependencies = [
+ "core",
  "macros",
 ]
 
@@ -278,7 +279,7 @@ checksum = "c3a6bfce3d99adfa72d24750a61f782f3036a81e7f86d8841ee1326deaebd171"
 name = "task_graph"
 version = "0.1.0"
 dependencies = [
- "bevy_task_graph",
+ "core",
  "macros",
  "schedule",
 ]

@@ -1,7 +1,6 @@
+use core::graph::*;
 use std::sync::{Arc, Mutex};
 
-use crate::Event;
-use crate::graph::*;
 use crate::schedule::*;
 
 macro_rules! declare_tags {
@@ -38,13 +37,13 @@ fn simple_graph() {
 
     assert_eq!(
         g.roots()
-            .map(|id| g.node_meta[id].type_name)
+            .map(|id| g.meta()[id].type_name())
             .collect::<Vec<_>>(),
         vec!["A"]
     );
     assert_eq!(
         g.leaves()
-            .map(|id| g.node_meta[id].type_name)
+            .map(|id| g.meta()[id].type_name())
             .collect::<Vec<_>>(),
         vec!["F"]
     );
@@ -71,7 +70,7 @@ fn topological_sort() {
         g.sort_ordered()
             .unwrap()
             .into_iter()
-            .map(|id| g.node_meta[id].type_name)
+            .map(|id| g.meta()[id].type_name())
             .collect::<Vec<_>>(),
         vec!["A", "B", "C", "E", "D", "F"]
     );
@@ -95,7 +94,7 @@ fn disjoint_sets() {
         .sort_ordered()
         .unwrap()
         .into_iter()
-        .map(|id| g.node_meta[id].type_name)
+        .map(|id| g.meta()[id].type_name())
         .collect();
 
     // Check roots of both sets come before their downstreams
@@ -134,7 +133,7 @@ fn empty_and_single_node() {
 
     let sorted = single_g.sort_ordered().unwrap();
     assert_eq!(sorted.len(), 1);
-    assert_eq!(single_g.node_meta[sorted[0]].type_name, "A");
+    assert_eq!(single_g.meta()[sorted[0]].type_name(), "A");
 }
 
 #[test]
@@ -153,7 +152,7 @@ fn diamond_dependency() {
         .sort_ordered()
         .unwrap()
         .into_iter()
-        .map(|id| g.node_meta[id].type_name)
+        .map(|id| g.meta()[id].type_name())
         .collect();
 
     // A must be first, D must be last
@@ -177,7 +176,7 @@ fn lifecycle_hooks() {
     g.add_edge(a, b);
     g.add_edge(b, c);
 
-    let mut runtime = Schedule::<char>::from(g, |meta| match meta.type_name {
+    let mut runtime = Schedule::<char>::from(g, |meta| match meta.type_name() {
         "A" => 'A',
         "B" => 'B',
         "C" => 'C',
@@ -263,7 +262,7 @@ fn nested_schedule_composition() {
     let combat_leaves = room.merge(combat, vec![enter]);
     let _loot_room_leaves = room.merge(loot_room, combat_leaves);
 
-    let mut runtime = Schedule::from(room, |meta| match meta.type_name {
+    let mut runtime = Schedule::from(room, |meta| match meta.type_name() {
         "Enter" => 'E',
         "Spawn" => 'S',
         "Fight" => 'F',
@@ -316,7 +315,7 @@ fn merge_into_parallel_set() {
         .sort_ordered()
         .unwrap()
         .iter()
-        .map(|&id| g.node_meta[id].type_name)
+        .map(|&id| g.meta()[id].type_name())
         .collect();
 
     assert_eq!(order, vec!["A", "B", "X", "Y", "C"])

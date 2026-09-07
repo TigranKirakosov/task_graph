@@ -1,5 +1,5 @@
 [package]
-name = "bevy_task_graph"
+name = "core"
 authors.workspace = true
 edition.workspace = true
 version.workspace = true
@@ -7,3 +7,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+
+[features]
+default = []
+visualizer = []

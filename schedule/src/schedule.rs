@@ -1,15 +1,24 @@
+use core::{
+    graph::{Graph, NodeId},
+    meta::{Marker, Meta},
+};
 use std::sync::Arc;
 use std::{any::TypeId, collections::HashMap};
 
-use crate::graph::Graph;
-use crate::meta::Meta;
-use crate::{Event, ExternId, InternId, TaskMarker};
+pub trait ExternId: std::hash::Hash + Eq + Clone + Send + Sync + 'static {}
+impl<T: std::hash::Hash + Eq + Clone + Send + Sync + 'static> ExternId for T {}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Event {
+    Started,
+    Resolved,
+}
 
 pub(crate) struct Schedule<I: ExternId> {
     pub(crate) graph: Graph,
     pub(crate) in_degree: Vec<usize>,
     pub(crate) listeners: HashMap<TypeId, Vec<Box<dyn Listener<I>>>>,
-    pub(crate) extern_to_local: HashMap<I, InternId>,
+    pub(crate) extern_to_local: HashMap<I, NodeId>,
     pub(crate) local_to_extern: Vec<I>,
 }
 
@@ -19,14 +28,14 @@ where
 {
     pub(crate) fn from(graph: Graph, provider: fn(&Meta) -> I) -> Self {
         let mut schedule = Self {
-            in_degree: graph.in_degree.clone(),
+            in_degree: graph.in_degree().to_vec(),
             graph,
             listeners: HashMap::new(),
             extern_to_local: HashMap::new(),
             local_to_extern: Vec::new(),
         };
 
-        for (task_id, meta) in schedule.graph.node_meta.iter().enumerate() {
+        for (task_id, meta) in schedule.graph.meta().iter().enumerate() {
             let extern_id = provider(meta);
             schedule.local_to_extern.push(extern_id.clone());
             schedule.extern_to_local.insert(extern_id, task_id);
@@ -42,10 +51,10 @@ where
     }
 
     pub(crate) fn reset(&mut self) {
-        self.in_degree.copy_from_slice(&self.graph.in_degree);
+        self.in_degree.copy_from_slice(self.graph.in_degree());
     }
 
-    pub(crate) fn subscribe<T: TaskMarker>(&mut self, listener: impl Listener<I>) {
+    pub(crate) fn subscribe<T: Marker>(&mut self, listener: impl Listener<I>) {
         let type_id = TypeId::of::<T>();
         self.listeners
             .entry(type_id)
@@ -53,10 +62,10 @@ where
             .push(Box::new(listener));
     }
 
-    fn notify(&self, id: InternId, cycle: Event) {
-        let Meta { type_id, .. } = &self.graph.node_meta[id];
+    fn notify(&self, id: NodeId, cycle: Event) {
+        let meta = &self.graph.meta()[id];
 
-        if let Some(typed_observers) = self.listeners.get(type_id) {
+        if let Some(typed_observers) = self.listeners.get(meta.type_id()) {
             let extern_id = &self.local_to_extern[id];
             for obs in typed_observers {
                 obs.notify(extern_id.clone(), cycle);
@@ -68,7 +77,7 @@ where
         let &node_id = self.extern_to_local.get(id).unwrap();
         let mut queue = vec![(node_id, Event::Resolved)];
 
-        for &nbr in &self.graph.adj[node_id] {
+        for &nbr in &self.graph.adj()[node_id] {
             self.in_degree[nbr] = self.in_degree[nbr].saturating_sub(1);
             if self.in_degree[nbr] == 0 {
                 queue.push((nbr, Event::Started));
