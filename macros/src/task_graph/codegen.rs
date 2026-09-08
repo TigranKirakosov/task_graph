@@ -54,7 +54,7 @@ pub(super) fn generate(ast: ast::TaskGraphAst) -> TokenStream {
     let Context { decls, links, .. } = cx;
     let out_stream = quote! {
         {
-            let mut graph = ::task_graph::Graph::new();
+            let mut graph = Graph::new();
             #(#decls)*
             #(#links)*
             graph

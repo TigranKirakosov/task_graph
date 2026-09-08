@@ -3,13 +3,17 @@
 A declarative, event-driven task scheduler for Rust.
 
 # Planned Features
-- [ ] fluent proc-macro [DSL](DSL.md) which:
-    - [ ] preserves intellisense
-    - [ ] provides precise compilation error spans
-    - [ ] prevents graph cycles at compile tile
-- [ ] compile-time schedule composition
+- [x] fluent and complete [DSL](DSL.md):
+    - [x] IDE support
+    - [x] compilation error spans
+    - [x] compile-time detection of circular dependencies
+- [ ] control directives:
+    - [ ] [*race*](DSL.md#race)
+    - [ ] [*fallback*](DSL.md#fallback)
 - [ ] graph visualizer
-- [ ] Bevy plugin integration
+
+# Integrations
+- [ ] [Bevy plugin](TODO: put link to plugin crate)
 
 ## Syntax Overview
 
