@@ -1,7 +1,4 @@
-use core::{
-    graph::{Graph, NodeId},
-    meta::{Marker, Meta},
-};
+use core::*;
 use std::sync::Arc;
 use std::{any::TypeId, collections::HashMap};
 
@@ -14,7 +11,7 @@ pub enum Event {
     Resolved,
 }
 
-pub(crate) struct Schedule<I: ExternId> {
+pub struct Schedule<I: ExternId> {
     pub(crate) graph: Graph,
     pub(crate) in_degree: Vec<usize>,
     pub(crate) listeners: HashMap<TypeId, Vec<Box<dyn Listener<I>>>>,
@@ -26,7 +23,7 @@ impl<I> Schedule<I>
 where
     I: ExternId,
 {
-    pub(crate) fn from(graph: Graph, provider: fn(&Meta) -> I) -> Self {
+    pub fn from(graph: Graph, provider: fn(&Meta) -> I) -> Self {
         let mut schedule = Self {
             in_degree: graph.in_degree().to_vec(),
             graph,
@@ -44,17 +41,17 @@ where
         schedule
     }
 
-    pub(crate) fn init(&mut self) {
+    pub fn init(&mut self) {
         for root in self.graph.roots().collect::<Vec<_>>() {
             self.notify(root, Event::Started);
         }
     }
 
-    pub(crate) fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.in_degree.copy_from_slice(self.graph.in_degree());
     }
 
-    pub(crate) fn subscribe<T: Marker>(&mut self, listener: impl Listener<I>) {
+    pub fn subscribe<T: Marker>(&mut self, listener: impl Listener<I>) {
         let type_id = TypeId::of::<T>();
         self.listeners
             .entry(type_id)
@@ -73,7 +70,7 @@ where
         }
     }
 
-    pub(crate) fn resolve_task(&mut self, id: &I) {
+    pub fn resolve_task(&mut self, id: &I) {
         let &node_id = self.extern_to_local.get(id).unwrap();
         let mut queue = vec![(node_id, Event::Resolved)];
 
@@ -90,7 +87,7 @@ where
     }
 }
 
-pub(crate) trait Listener<I: ExternId>: Send + Sync + 'static {
+pub trait Listener<I: ExternId>: Send + Sync + 'static {
     fn notify(&self, id: I, event: Event);
 }
 

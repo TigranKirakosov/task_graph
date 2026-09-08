@@ -1,11 +1,7 @@
-use crate::task_graph::parser::{
-    combinators::enclosed,
-    error::{SpanInfo, current_span},
-    ext::TokenStreamParseExt,
-};
+use crate::task_graph::parser::{combinators::enclosed, ext::TokenStreamParseExt};
 
 use super::ast::*;
-use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
+use proc_macro2::{Delimiter, Span, TokenStream as TokenStream2, TokenTree};
 use winnow::{
     ModalResult, Parser,
     combinator::{alt, preceded, repeat, separated},
@@ -22,6 +18,31 @@ mod ext;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct SpanInfo {
+    pub(super) span: Span,
+    pub(super) at_call_site: bool,
+}
+
+impl PartialEq for SpanInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.at_call_site == other.at_call_site
+    }
+}
+
+pub(crate) fn current_span(input: &[TokenTree]) -> SpanInfo {
+    match input.first().map(|tt| tt.span()) {
+        Some(span) => SpanInfo {
+            span,
+            at_call_site: false,
+        },
+        None => SpanInfo {
+            span: Span::call_site(),
+            at_call_site: true,
+        },
+    }
+}
 
 pub(super) fn parse(stream: TokenStream2) -> Result<TaskGraphAst, syn::Error> {
     let tokens: Vec<TokenTree> = stream.into_iter().collect();
@@ -44,9 +65,14 @@ pub(super) fn parse(stream: TokenStream2) -> Result<TaskGraphAst, syn::Error> {
 
 /// (a: A | b: B) -> C -> [d];
 fn graph<'a>(input: &mut &'a [TokenTree]) -> ModalResult<Graph, ParseError<'a>> {
+    let start_span = current_span(input);
     let entry = node_expr.parse_next(input)?;
     let conns = repeat(0.., preceded(arrow, node_expr)).parse_next(input)?;
-    Ok(Graph { entry, conns })
+    Ok(Graph {
+        entry,
+        conns,
+        span_info: start_span,
+    })
 }
 
 fn node_expr<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a>> {
@@ -89,9 +115,16 @@ fn binding<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<
 /// 1) (A | B | C)
 /// 2) (A, B, C)
 fn group<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a>> {
+    let group_span = current_span(input);
     let expr = enclosed(
         Delimiter::Parenthesis,
-        |i| alt((parallel_block, sequence_block)).parse_next(i),
+        move |i| {
+            alt((
+                parallel_block(group_span.clone()),
+                sequence_block(group_span.clone()),
+            ))
+            .parse_next(i)
+        },
         "node group",
     )
     .map(NodeExpr::Group)
@@ -100,38 +133,48 @@ fn group<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a
     Ok(expr)
 }
 
-fn parallel_block<'a>(input: &mut &'a [TokenTree]) -> ModalResult<GroupBlock, ParseError<'a>> {
-    let checkpoint = input.checkpoint();
-    match separated(2.., graph, punct('|')).parse_next(input) {
-        Ok(graphs) => {
-            let block = GroupBlock {
-                mode: SchedulingMode::Parallel,
-                graphs,
-            };
+fn parallel_block<'a>(
+    span_info: SpanInfo,
+) -> impl FnMut(&mut &'a [TokenTree]) -> ModalResult<GroupBlock, ParseError<'a>> {
+    move |input: &mut &'a [TokenTree]| {
+        let checkpoint = input.checkpoint();
+        match separated(2.., graph, punct('|')).parse_next(input) {
+            Ok(graphs) => {
+                let block = GroupBlock {
+                    mode: SchedulingMode::Parallel,
+                    graphs,
+                    span_info,
+                };
 
-            Ok(block)
-        }
-        Err(err) => {
-            input.reset(&checkpoint);
-            Err(err)
+                Ok(block)
+            }
+            Err(err) => {
+                input.reset(&checkpoint);
+                Err(err)
+            }
         }
     }
 }
 
-fn sequence_block<'a>(input: &mut &'a [TokenTree]) -> ModalResult<GroupBlock, ParseError<'a>> {
-    let checkpoint = input.checkpoint();
-    match separated(2.., graph, punct(',')).parse_next(input) {
-        Ok(graphs) => {
-            let block = GroupBlock {
-                mode: SchedulingMode::Sequence,
-                graphs,
-            };
+fn sequence_block<'a>(
+    span_info: SpanInfo,
+) -> impl FnMut(&mut &'a [TokenTree]) -> ModalResult<GroupBlock, ParseError<'a>> {
+    move |input: &mut &'a [TokenTree]| {
+        let checkpoint = input.checkpoint();
+        match separated(2.., graph, punct(',')).parse_next(input) {
+            Ok(graphs) => {
+                let block = GroupBlock {
+                    mode: SchedulingMode::Sequence,
+                    graphs,
+                    span_info,
+                };
 
-            Ok(block)
-        }
-        Err(err) => {
-            input.reset(&checkpoint);
-            Err(err)
+                Ok(block)
+            }
+            Err(err) => {
+                input.reset(&checkpoint);
+                Err(err)
+            }
         }
     }
 }

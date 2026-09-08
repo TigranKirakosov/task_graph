@@ -1,0 +1,5 @@
+error: Task Graph Error: Circular dependency: b -> a
+ --> tests/ui/fail/circular_dependency.rs:9:17
+  |
+9 |         [b] -> [a];
+  |                 ^

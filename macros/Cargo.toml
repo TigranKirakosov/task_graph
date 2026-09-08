@@ -10,7 +10,7 @@ rust-version.workspace = true
 proc-macro = true
 
 [dependencies]
-core = { path = "../core", version = "0.1.0", features = ["visualizer"] }
+core = { path = "../core", version = "0.1.0" }
 winnow = "0.6"
 syn = { version = "2.0", features = ["parsing", "full", "extra-traits"] }
 proc-macro2 = "1.0"
@@ -18,4 +18,3 @@ quote = "1.0"
 
 [dev-dependencies]
 insta = { version = "1.48.0", features = ["yaml"] }
-trybuild = "1.0.120"

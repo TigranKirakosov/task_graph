@@ -1,5 +1,5 @@
 ---
-source: macros/src/task_graph/parser/tests.rs
+source: macros/src/task_graph/parser/tests/mod.rs
 expression: ast
 ---
 TaskGraphAst {
@@ -23,6 +23,10 @@ TaskGraphAst {
                     },
                 ),
             ],
+            span_info: SpanInfo {
+                span: Span,
+                at_call_site: false,
+            },
         },
         Graph {
             entry: Binding(
@@ -43,6 +47,10 @@ TaskGraphAst {
                                     },
                                 ),
                                 conns: [],
+                                span_info: SpanInfo {
+                                    span: Span,
+                                    at_call_site: false,
+                                },
                             },
                             Graph {
                                 entry: Declaration(
@@ -52,6 +60,10 @@ TaskGraphAst {
                                     },
                                 ),
                                 conns: [],
+                                span_info: SpanInfo {
+                                    span: Span,
+                                    at_call_site: false,
+                                },
                             },
                             Graph {
                                 entry: Declaration(
@@ -61,8 +73,16 @@ TaskGraphAst {
                                     },
                                 ),
                                 conns: [],
+                                span_info: SpanInfo {
+                                    span: Span,
+                                    at_call_site: false,
+                                },
                             },
                         ],
+                        span_info: SpanInfo {
+                            span: Span,
+                            at_call_site: false,
+                        },
                     },
                 ),
                 Declaration(
@@ -74,6 +94,10 @@ TaskGraphAst {
                     },
                 ),
             ],
+            span_info: SpanInfo {
+                span: Span,
+                at_call_site: false,
+            },
         },
     ],
 }

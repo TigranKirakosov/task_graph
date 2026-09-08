@@ -1,13 +1,9 @@
-use proc_macro2::{Span, TokenTree};
+use proc_macro2::TokenTree;
 #[allow(deprecated)]
 use winnow::error::{AddContext, ContextError, ErrorKind, ParserError, StrContext};
 use winnow::stream::Stream;
 
-#[derive(Debug)]
-pub(super) struct SpanInfo {
-    pub(super) span: Span,
-    pub(super) at_call_site: bool,
-}
+use super::{SpanInfo, current_span};
 
 #[derive(Debug)]
 pub(super) struct ParseError<'s> {
@@ -58,18 +54,5 @@ impl<'s> AddContext<&'s [TokenTree], StrContext> for ParseError<'s> {
     ) -> Self {
         self.inner = self.inner.add_context(input, token_start, context);
         self
-    }
-}
-
-pub(crate) fn current_span(input: &[TokenTree]) -> SpanInfo {
-    match input.first().map(|tt| tt.span()) {
-        Some(span) => SpanInfo {
-            span,
-            at_call_site: false,
-        },
-        None => SpanInfo {
-            span: Span::call_site(),
-            at_call_site: true,
-        },
     }
 }

@@ -25,3 +25,11 @@ members = [
 core = { path = "core", version = "0.1.0" }
 schedule = { path = "schedule", version = "0.1.0" }
 macros = { path = "macros", version = "0.1.0" }
+
+[dev-dependencies]
+trybuild = "1.0.121"
+task_graph = { path = "." }
+
+[[test]]
+name = "compile_tests"
+path = "tests/compile_tests.rs"

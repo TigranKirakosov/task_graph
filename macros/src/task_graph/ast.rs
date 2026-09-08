@@ -1,6 +1,7 @@
 use syn::{Ident, Type};
 
-use crate::task_graph::format_type;
+use super::format_type;
+use super::parser::SpanInfo;
 
 #[derive(Debug)]
 pub(super) struct TaskGraphAst {
@@ -14,6 +15,7 @@ pub(super) struct Graph {
     pub(super) entry: NodeExpr,
     // B, [in], C
     pub(super) conns: Vec<NodeExpr>,
+    pub(super) span_info: SpanInfo,
 }
 
 #[derive(Debug, PartialEq)]
@@ -40,6 +42,7 @@ pub(super) struct Task {
 pub(super) struct GroupBlock {
     pub(super) mode: SchedulingMode,
     pub(super) graphs: Vec<Graph>,
+    pub(super) span_info: SpanInfo,
 }
 
 #[derive(Debug, PartialEq)]

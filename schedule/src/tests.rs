@@ -1,4 +1,4 @@
-use core::graph::*;
+use core::*;
 use std::sync::{Arc, Mutex};
 
 use crate::schedule::*;
@@ -14,6 +14,7 @@ macro_rules! declare_tags {
 macro_rules! add_nodes {
     ($graph:expr, $($tag:ident : $type:ty),* $(,)?) => {
         $(
+            #[allow(unused)]
             let $tag = $graph.add_node::<$type>();
         )*
     };

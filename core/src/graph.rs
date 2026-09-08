@@ -9,6 +9,7 @@ pub enum GraphError {
     CycleDetected,
 }
 
+#[derive(Default)]
 pub struct Graph {
     pub(crate) in_degree: Vec<usize>,
     pub(crate) adj: Vec<Vec<NodeId>>,
@@ -17,11 +18,7 @@ pub struct Graph {
 
 impl Graph {
     pub fn new() -> Self {
-        Self {
-            in_degree: Vec::new(),
-            adj: Vec::new(),
-            meta: Vec::new(),
-        }
+        Self::default()
     }
 
     pub fn add_node<T: Marker>(&mut self) -> NodeId {
@@ -29,7 +26,7 @@ impl Graph {
         self.adj.push(vec![]);
         self.in_degree.push(0);
 
-        self.meta.len() - 1
+        self.adj.len() - 1
     }
 
     /// Adds a dependency `a -> b` and increments `b`'s dependants count
@@ -75,7 +72,7 @@ impl Graph {
 
         // Offset root and leaf indices of sub
         // so they stand right after last node of this graph
-        let offset = self.meta.len();
+        let offset = self.adj.len();
         let sub_roots: Vec<NodeId> = sub.roots().map(|id| id + offset).collect();
         let sub_leaves: Vec<NodeId> = sub.leaves().map(|id| id + offset).collect();
 
@@ -148,12 +145,12 @@ impl Graph {
     }
 
     pub fn roots(&self) -> impl Iterator<Item = NodeId> {
-        let len = self.meta.len();
+        let len = self.adj.len();
         (0..len).filter(|&id| self.in_degree[id] == 0)
     }
 
     pub fn leaves(&self) -> impl Iterator<Item = NodeId> {
-        let len = self.meta.len();
+        let len = self.adj.len();
         (0..len).filter(|&id| self.adj[id].is_empty())
     }
 }

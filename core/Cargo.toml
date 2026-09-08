@@ -9,5 +9,5 @@ rust-version.workspace = true
 [dependencies]
 
 [features]
-default = []
+default = ["visualizer"]
 visualizer = []
