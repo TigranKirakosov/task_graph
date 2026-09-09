@@ -3,6 +3,7 @@ use std::any::TypeId;
 pub trait Marker: 'static {}
 impl<T: 'static> Marker for T {}
 
+#[derive(Clone)]
 pub struct Meta {
     pub(crate) type_id: TypeId,
     #[cfg(any(test, feature = "visualizer"))]

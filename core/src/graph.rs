@@ -16,6 +16,11 @@ pub struct Graph {
     pub(crate) meta: Vec<Meta>,
 }
 
+pub struct GraphBounds {
+    pub sources: Vec<NodeId>,
+    pub sinks: Vec<NodeId>,
+}
+
 impl Graph {
     pub fn new() -> Self {
         Self::default()
@@ -39,7 +44,7 @@ impl Graph {
         self.in_degree[rhs] += 1;
     }
 
-    /// Merges sub-[Schedule] into this [Schedule] returning shifted leaves of sub
+    /// Merges sub-[Graph] into this [Graph] returning shifted sub [GraphBounds]
     ///
     /// ### Single entry
     /// Merging sub-graph **H** (`x -> y`) into graph **G** (`a -> b`) at **G**(`a`):
@@ -54,7 +59,7 @@ impl Graph {
     ///       ├──> [x] ──> [c]
     /// [b] ──┘
     /// ```
-    pub fn merge(&mut self, sub: Graph, at: Vec<NodeId>) -> Vec<NodeId> {
+    pub fn merge(&mut self, sub: &Graph, at: Vec<NodeId>) -> GraphBounds {
         // Collect unique downstream neighbours of each node of `at` list
         // while counting broken edges
         let mut at_downstream = HashMap::new();
@@ -70,50 +75,54 @@ impl Graph {
             self.in_degree[nbr] = self.in_degree[nbr].saturating_sub(count);
         }
 
-        // Offset root and leaf indices of sub
+        // Offset source and sink indices of sub
         // so they stand right after last node of this graph
         let offset = self.adj.len();
-        let sub_roots: Vec<NodeId> = sub.roots().map(|id| id + offset).collect();
-        let sub_leaves: Vec<NodeId> = sub.leaves().map(|id| id + offset).collect();
+        let sub_sources: Vec<NodeId> = sub.sources().map(|id| id + offset).collect();
+        let sub_sinks: Vec<NodeId> = sub.sinks().map(|id| id + offset).collect();
 
         // Extend with sub vectors
-        self.meta.extend(sub.meta);
-        self.in_degree.extend(sub.in_degree);
+        self.meta.extend(sub.meta.clone());
+        self.in_degree.extend(sub.in_degree.clone());
 
-        for mut downstream in sub.adj {
+        for downstream in &sub.adj {
             // Offset every downstream node index aswell
-            for node in &mut downstream {
+            let mut shifted_downstream = downstream.clone();
+            for node in &mut shifted_downstream {
                 *node += offset;
             }
 
-            self.adj.push(downstream);
+            self.adj.push(shifted_downstream);
         }
 
-        // Stitch at nodes with sub's root nodes
+        // Stitch at nodes with sub's source nodes
         for &node in &at {
-            for &sub_root in &sub_roots {
-                self.adj[node].push(sub_root);
-                self.in_degree[sub_root] += 1;
+            for &s_source in &sub_sources {
+                self.adj[node].push(s_source);
+                self.in_degree[s_source] += 1;
             }
         }
 
-        // Stitch sub's leaf nodes with downstream neighbors of at nodes
+        // Stitch sub's sink nodes with downstream neighbors of at nodes
         // while restoring their in-degrees
-        for &sub_leaf in &sub_leaves {
+        for &s_sink in &sub_sinks {
             for &nbr in at_downstream.keys() {
-                self.adj[sub_leaf].push(nbr);
+                self.adj[s_sink].push(nbr);
                 self.in_degree[nbr] += 1;
             }
         }
 
-        sub_leaves
+        GraphBounds {
+            sources: sub_sources,
+            sinks: sub_sinks,
+        }
     }
 
     /// Kahn's topological sort
     pub fn sort_ordered(&self) -> Result<Vec<NodeId>, GraphError> {
         let mut order = Vec::new();
         let mut in_deg = self.in_degree.clone();
-        let mut q = VecDeque::<NodeId>::from(self.roots().collect::<Vec<_>>());
+        let mut q = VecDeque::<NodeId>::from(self.sources().collect::<Vec<_>>());
 
         while let Some(id) = q.pop_front() {
             order.push(id);
@@ -144,12 +153,12 @@ impl Graph {
         self.meta.as_slice()
     }
 
-    pub fn roots(&self) -> impl Iterator<Item = NodeId> {
+    pub fn sources(&self) -> impl Iterator<Item = NodeId> {
         let len = self.adj.len();
         (0..len).filter(|&id| self.in_degree[id] == 0)
     }
 
-    pub fn leaves(&self) -> impl Iterator<Item = NodeId> {
+    pub fn sinks(&self) -> impl Iterator<Item = NodeId> {
         let len = self.adj.len();
         (0..len).filter(|&id| self.adj[id].is_empty())
     }

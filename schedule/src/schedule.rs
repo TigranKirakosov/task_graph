@@ -2,8 +2,8 @@ use core::*;
 use std::sync::Arc;
 use std::{any::TypeId, collections::HashMap};
 
-pub trait ExternId: std::hash::Hash + Eq + Clone + Send + Sync + 'static {}
-impl<T: std::hash::Hash + Eq + Clone + Send + Sync + 'static> ExternId for T {}
+pub trait ExternId: std::hash::Hash + std::fmt::Debug + Eq + Clone + Send + Sync + 'static {}
+impl<T: std::hash::Hash + std::fmt::Debug + Eq + Clone + Send + Sync + 'static> ExternId for T {}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Event {
@@ -42,7 +42,7 @@ where
     }
 
     pub fn init(&mut self) {
-        for root in self.graph.roots().collect::<Vec<_>>() {
+        for root in self.graph.sources().collect::<Vec<_>>() {
             self.notify(root, Event::Started);
         }
     }
@@ -71,7 +71,10 @@ where
     }
 
     pub fn resolve_task(&mut self, id: &I) {
-        let &node_id = self.extern_to_local.get(id).unwrap();
+        let Some(&node_id) = self.extern_to_local.get(id) else {
+            panic!("Tried to resolve missing id: {id:?}")
+        };
+
         let mut queue = vec![(node_id, Event::Resolved)];
 
         for &nbr in &self.graph.adj()[node_id] {

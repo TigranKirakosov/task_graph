@@ -23,8 +23,11 @@ pub(super) enum NodeExpr {
     /// A local variable declaration
     Declaration(Task),
 
-    /// A bound identifier reference, e.g. [in]
+    /// A bound node identifier reference, e.g. [in]
     Binding(Ident),
+
+    /// A bound graph identifier reference, e.g. #[in]
+    Embedding(Ident),
 
     /// (A | B | C) or (A, B, C) or (A -> B -> C)
     Group(GroupBlock),

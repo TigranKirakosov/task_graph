@@ -1,6 +1,8 @@
 use core::*;
 use std::sync::{Arc, Mutex};
 
+use macros::task_graph;
+
 use crate::schedule::*;
 
 macro_rules! declare_tags {
@@ -22,8 +24,9 @@ macro_rules! add_nodes {
 
 #[test]
 fn simple_graph() {
-    let mut g = Graph::new();
     declare_tags!(A, B, C, D, E, F);
+
+    let mut g = Graph::new();
     add_nodes!(
         g,
         a: A, b: B, c: C,
@@ -37,13 +40,35 @@ fn simple_graph() {
     g.add_edge(e, f);
 
     assert_eq!(
-        g.roots()
+        g.sources()
             .map(|id| g.meta()[id].type_name())
             .collect::<Vec<_>>(),
         vec!["A"]
     );
     assert_eq!(
-        g.leaves()
+        g.sinks()
+            .map(|id| g.meta()[id].type_name())
+            .collect::<Vec<_>>(),
+        vec!["F"]
+    );
+}
+
+#[test]
+fn simple_graph_macro() {
+    declare_tags!(A, B, C, D, E, F);
+
+    let g = task_graph!(
+        A -> B -> C -> D -> E -> F;
+    );
+
+    assert_eq!(
+        g.sources()
+            .map(|id| g.meta()[id].type_name())
+            .collect::<Vec<_>>(),
+        vec!["A"]
+    );
+    assert_eq!(
+        g.sinks()
             .map(|id| g.meta()[id].type_name())
             .collect::<Vec<_>>(),
         vec!["F"]
@@ -52,8 +77,9 @@ fn simple_graph() {
 
 #[test]
 fn topological_sort() {
-    let mut g = Graph::new();
     declare_tags!(A, B, C, D, E, F);
+
+    let mut g = Graph::new();
     add_nodes!(
         g,
         a: A, b: B, c: C,
@@ -79,8 +105,9 @@ fn topological_sort() {
 
 #[test]
 fn disjoint_sets() {
-    let mut g = Graph::new();
     declare_tags!(A, B, X, Y);
+
+    let mut g = Graph::new();
     add_nodes!(g,
         a: A, b: B,
         x: X, y: Y
@@ -98,7 +125,7 @@ fn disjoint_sets() {
         .map(|id| g.meta()[id].type_name())
         .collect();
 
-    // Check roots of both sets come before their downstreams
+    // Check upstreams of both sets come before their downstreams
     assert!(
         sorted.iter().position(|&name| name == "A").unwrap()
             < sorted.iter().position(|&name| name == "B").unwrap()
@@ -111,8 +138,9 @@ fn disjoint_sets() {
 
 #[test]
 fn cyclic_graph_returns_err() {
-    let mut g = Graph::new();
     declare_tags!(A, B, C);
+
+    let mut g = Graph::new();
     add_nodes!(g, a: A, b: B, c: C);
 
     // Loop: A -> B -> C -> A
@@ -125,11 +153,12 @@ fn cyclic_graph_returns_err() {
 
 #[test]
 fn empty_and_single_node() {
+    declare_tags!(A);
+
     let empty_g = Graph::new();
     assert_eq!(empty_g.sort_ordered().unwrap(), vec![]);
 
     let mut single_g = Graph::new();
-    declare_tags!(A);
     add_nodes!(single_g, a: A);
 
     let sorted = single_g.sort_ordered().unwrap();
@@ -139,9 +168,9 @@ fn empty_and_single_node() {
 
 #[test]
 fn diamond_dependency() {
-    let mut g = Graph::new();
-
     declare_tags!(A, B, C, D);
+
+    let mut g = Graph::new();
     add_nodes!(g, a: A, b: B, c: C, d: D);
 
     g.add_edge(a, b);
@@ -166,23 +195,41 @@ fn diamond_dependency() {
 }
 
 #[test]
-fn lifecycle_hooks() {
-    let mut g = Graph::new();
-    declare_tags!(A, B, C);
-    add_nodes!(
-        g,
-        a: A, b: B, c: C,
+fn diamond_dependency_macro() {
+    declare_tags!(A, B, C, D);
+
+    let g = task_graph!(
+        a: A; d: D;
+
+        [a] -> B -> [d];
+        [a] -> C -> [d];
     );
 
-    g.add_edge(a, b);
-    g.add_edge(b, c);
+    let sorted: Vec<_> = g
+        .sort_ordered()
+        .unwrap()
+        .into_iter()
+        .map(|id| g.meta()[id].type_name())
+        .collect();
 
-    let mut runtime = Schedule::<char>::from(g, |meta| match meta.type_name() {
-        "A" => 'A',
-        "B" => 'B',
-        "C" => 'C',
-        _ => unreachable!(),
-    });
+    // A must be first, D must be last
+    assert_eq!(sorted[0], "A");
+    assert_eq!(sorted[3], "D");
+
+    // B and C must be in the middle slots (1 and 2)
+    assert!(sorted[1] == "B" || sorted[1] == "C");
+    assert!(sorted[2] == "B" || sorted[2] == "C");
+}
+
+#[test]
+fn lifecycle_hooks() {
+    declare_tags!(A, B, C);
+
+    let g = task_graph!(
+        A -> B -> C;
+    );
+
+    let mut runtime = Schedule::from(g, |meta| meta.type_name());
 
     let q = Arc::new(Mutex::new(Vec::new()));
     let q_clone = q.clone();
@@ -196,48 +243,51 @@ fn lifecycle_hooks() {
     assert_eq!(*q.lock().unwrap(), vec![]);
 
     runtime.init();
-    assert_eq!(*q.lock().unwrap(), vec![('A', Event::Started)]);
+    assert_eq!(*q.lock().unwrap(), vec![("A", Event::Started)]);
 
-    runtime.resolve_task(&'A');
+    runtime.resolve_task(&"A");
     assert_eq! {
         *q.lock().unwrap(),
         vec![
-            ('A', Event::Started),
-            ('A', Event::Resolved),
-            ('B', Event::Started),
+            ("A", Event::Started),
+            ("A", Event::Resolved),
+            ("B", Event::Started),
         ]
     };
 
-    runtime.resolve_task(&'B');
+    runtime.resolve_task(&"B");
     assert_eq! {
         *q.lock().unwrap(),
         vec![
-            ('A', Event::Started),
-            ('A', Event::Resolved),
-            ('B', Event::Started),
-            ('B', Event::Resolved),
-            ('C', Event::Started),
+            ("A", Event::Started),
+            ("A", Event::Resolved),
+            ("B", Event::Started),
+            ("B", Event::Resolved),
+            ("C", Event::Started),
         ]
     };
 
-    runtime.resolve_task(&'C');
+    runtime.resolve_task(&"C");
     assert_eq! {
         *q.lock().unwrap(),
         vec![
-            ('A', Event::Started),
-            ('A', Event::Resolved),
-            ('B', Event::Started),
-            ('B', Event::Resolved),
-            ('C', Event::Started),
-            ('C', Event::Resolved),
+            ("A", Event::Started),
+            ("A", Event::Resolved),
+            ("B", Event::Started),
+            ("B", Event::Resolved),
+            ("C", Event::Started),
+            ("C", Event::Resolved),
         ]
     };
 }
 
 #[test]
 fn nested_schedule_composition() {
-    let mut room = Graph::new();
     declare_tags!(Enter, Exit);
+    declare_tags!(SpawnEnemies, Fight);
+    declare_tags!(RollLoot, PickTreasure);
+
+    let mut room = Graph::new();
     add_nodes! {
           room,
           enter: Enter, exit: Exit,
@@ -245,33 +295,23 @@ fn nested_schedule_composition() {
     room.add_edge(enter, exit);
 
     let mut combat = Graph::new();
-    declare_tags!(Spawn, Fight);
     add_nodes! {
           combat,
-          spawn: Spawn, fight: Fight,
+          spawn: SpawnEnemies, fight: Fight,
     };
     combat.add_edge(spawn, fight);
 
-    let mut loot_room = Graph::new();
-    declare_tags!(RollLoot, PickTreasure);
+    let mut loot = Graph::new();
     add_nodes! {
-          loot_room,
+          loot,
           roll: RollLoot, pick: PickTreasure,
     };
-    loot_room.add_edge(roll, pick);
+    loot.add_edge(roll, pick);
 
-    let combat_leaves = room.merge(combat, vec![enter]);
-    let _loot_room_leaves = room.merge(loot_room, combat_leaves);
+    let combat_bounds = room.merge(&combat, vec![enter]);
+    let _loot_bounds = room.merge(&loot, combat_bounds.sinks);
 
-    let mut runtime = Schedule::from(room, |meta| match meta.type_name() {
-        "Enter" => 'E',
-        "Spawn" => 'S',
-        "Fight" => 'F',
-        "RollLoot" => 'L',
-        "PickTreasure" => 'P',
-        "Exit" => 'X',
-        _ => unreachable!(),
-    });
+    let mut runtime = Schedule::from(room, |meta| meta.type_name());
 
     let q = Arc::new(Mutex::new(Vec::new()));
     let q_clone = q.clone();
@@ -280,22 +320,68 @@ fn nested_schedule_composition() {
     });
 
     runtime.init();
-    runtime.resolve_task(&'E');
-    runtime.resolve_task(&'S');
-    runtime.resolve_task(&'F');
-    runtime.resolve_task(&'L');
+    runtime.resolve_task(&"Enter");
+    runtime.resolve_task(&"SpawnEnemies");
+    runtime.resolve_task(&"Fight");
+    runtime.resolve_task(&"RollLoot");
 
     assert!(q.lock().unwrap().is_empty(), "Exit blocked");
 
-    runtime.resolve_task(&'P'); // last task before Exit
-    assert_eq!(*q.lock().unwrap(), vec![('X', Event::Started)]);
+    runtime.resolve_task(&"PickTreasure"); // last task before Exit
+    assert_eq!(*q.lock().unwrap(), vec![("Exit", Event::Started)]);
 }
 
 #[test]
+fn nested_schedule_composition_macro() {
+    declare_tags!(Enter, Exit);
+    declare_tags!(SpawnEnemies, Fight);
+    declare_tags!(RollLoot, PickTreasure);
+
+    fn room(a: &Graph, b: &Graph) -> Graph {
+        task_graph! {
+            Enter -> #[a] -> #[b] -> Exit;
+        }
+    }
+
+    let combat = task_graph!(
+        SpawnEnemies -> Fight;
+    );
+
+    let loot = task_graph!(
+        RollLoot -> PickTreasure;
+    );
+
+    let composed_room = room(&combat, &loot);
+
+    let mut runtime = Schedule::from(composed_room, |meta| meta.type_name());
+
+    let q = Arc::new(Mutex::new(Vec::new()));
+    let q_clone = q.clone();
+    runtime.subscribe::<Exit>(move |id, event| {
+        q_clone.lock().unwrap().push((id, event));
+    });
+
+    runtime.init();
+    runtime.resolve_task(&"Enter");
+    runtime.resolve_task(&"SpawnEnemies");
+    runtime.resolve_task(&"Fight");
+    runtime.resolve_task(&"RollLoot");
+
+    assert!(q.lock().unwrap().is_empty(), "Exit blocked");
+
+    runtime.resolve_task(&"PickTreasure"); // last task before Exit
+    assert_eq!(*q.lock().unwrap(), vec![("Exit", Event::Started)]);
+}
+
+/// G: (a | b) -> c
+/// H: x -> y
+#[test]
 fn merge_into_parallel_set() {
+    declare_tags!(A, B, C);
+    declare_tags!(X, Y);
+
     // (a | b) -> c
     let mut g = Graph::new();
-    declare_tags!(A, B, C);
     add_nodes! {
           g,
           a: A, b: B, c: C,
@@ -305,12 +391,11 @@ fn merge_into_parallel_set() {
 
     // x -> y
     let mut h = Graph::new();
-    declare_tags!(X, Y);
     add_nodes!(h, x: X, y: Y);
     h.add_edge(x, y);
 
     // (a | b) -> x -> y -> c
-    let _h_leaves = g.merge(h, vec![a, b]);
+    let _h_bounds = g.merge(&h, vec![a, b]);
 
     let order: Vec<&'static str> = g
         .sort_ordered()
@@ -320,4 +405,105 @@ fn merge_into_parallel_set() {
         .collect();
 
     assert_eq!(order, vec!["A", "B", "X", "Y", "C"])
+}
+
+/// - G: `(a | b) -> #[sub] -> c`
+/// - H: `x -> y`
+/// - Combined: `(a | b) -> x -> y -> c`
+#[test]
+fn merge_into_parallel_set_macro() {
+    declare_tags!(X, Y);
+    declare_tags!(A, B, C);
+
+    let h = task_graph!(
+        X -> Y;
+    );
+
+    // (a | b) -> #[sub] -> c
+    let g = task_graph!(
+        (A | B) -> #[h] -> C;
+    );
+
+    let order: Vec<&'static str> = g
+        .sort_ordered()
+        .unwrap()
+        .iter()
+        .map(|&id| g.meta()[id].type_name())
+        .collect();
+
+    assert_eq!(order, vec!["A", "B", "X", "Y", "C"])
+}
+
+/// - G: `Enter -> ( A | #[sub] ) -> Exit`
+/// - #[sub]: `X -> Y`
+/// - Combined: `Enter -> (A | X -> Y) -> Exit`
+#[test]
+fn embed_graph_inside_parallel_group_macro() {
+    declare_tags!(X, Y);
+    declare_tags!(Enter, A, Exit);
+
+    let sub = task_graph!(
+        X -> Y;
+    );
+
+    let g = task_graph!(
+        Enter -> ( A | #[sub] ) -> Exit;
+    );
+
+    let order: Vec<&'static str> = g
+        .sort_ordered()
+        .unwrap()
+        .iter()
+        .map(|&id| g.meta()[id].type_name())
+        .collect();
+
+    assert_eq!(order[0], "Enter");
+    assert!(order[1] == "A" || order[1] == "X");
+    assert!(order[2] == "A" || order[2] == "X" || order[2] == "Y");
+    assert_eq!(*order.last().unwrap(), "Exit");
+}
+
+/// - #[sub]: `X -> Y`
+/// - G: `#[sub] -> (A | B) -> C`
+/// - Combined: `X -> Y -> (A | B) -> C`
+#[test]
+fn embed_graph_fan_out_to_parallel_set_macro() {
+    declare_tags!(X, Y);
+    declare_tags!(A, B, C);
+
+    let sub = task_graph!(
+        X -> Y;
+    );
+
+    let g = task_graph!(
+        #[sub] -> (A | B) -> C;
+    );
+
+    let order: Vec<&'static str> = g
+        .sort_ordered()
+        .unwrap()
+        .iter()
+        .map(|&id| g.meta()[id].type_name())
+        .collect();
+
+    assert_eq!(order, vec!["X", "Y", "A", "B", "C"]);
+}
+
+#[test]
+fn standalone_embedding_macro() {
+    declare_tags!(A, B);
+    let sub = task_graph!(A -> B;);
+
+    let g = task_graph!(
+        #[sub];
+    );
+
+    let order: Vec<&'static str> = g
+        .sort_ordered()
+        .unwrap()
+        .iter()
+        .map(|&id| g.meta()[id].type_name())
+        .collect();
+
+    assert_eq!(order, vec!["A", "B"]);
 }

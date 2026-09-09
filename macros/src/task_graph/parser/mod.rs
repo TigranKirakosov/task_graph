@@ -1,4 +1,4 @@
-use crate::task_graph::parser::{combinators::enclosed, ext::TokenStreamParseExt};
+use crate::task_graph::parser::ext::TokenStreamParseExt;
 
 use super::ast::*;
 use proc_macro2::{Delimiter, Span, TokenStream as TokenStream2, TokenTree};
@@ -48,8 +48,8 @@ pub(super) fn parse(stream: TokenStream2) -> Result<TaskGraphAst, syn::Error> {
     let tokens: Vec<TokenTree> = stream.into_iter().collect();
     let mut input = tokens.as_slice();
 
-    match separated(0.., graph, punct(';')).parse_next(&mut input) {
-        Ok(graphs) => Ok(TaskGraphAst { graphs }),
+    match ast.parse_next(&mut input) {
+        Ok(root) => Ok(root),
         Err(err_mode) => {
             let parse_err = err_mode
                 .into_inner()
@@ -61,6 +61,12 @@ pub(super) fn parse(stream: TokenStream2) -> Result<TaskGraphAst, syn::Error> {
             ))
         }
     }
+}
+
+fn ast<'a>(input: &mut &'a [TokenTree]) -> ModalResult<TaskGraphAst, ParseError<'a>> {
+    let graphs = separated(0.., graph, punct(';')).parse_next(input)?;
+
+    Ok(TaskGraphAst { graphs })
 }
 
 /// (a: A | b: B) -> C -> [d];
@@ -76,7 +82,7 @@ fn graph<'a>(input: &mut &'a [TokenTree]) -> ModalResult<Graph, ParseError<'a>> 
 }
 
 fn node_expr<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a>> {
-    let expr = alt((binding, decl, group)).parse_next(input)?;
+    let expr = alt((embedding, binding, decl, group)).parse_next(input)?;
     Ok(expr)
 }
 
@@ -107,6 +113,17 @@ fn decl<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a>
 fn binding<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a>> {
     let expr = enclosed(Delimiter::Bracket, ident, "var binding")
         .map(NodeExpr::Binding)
+        .parse_next(input)?;
+
+    Ok(expr)
+}
+
+/// #[var]
+fn embedding<'a>(input: &mut &'a [TokenTree]) -> ModalResult<NodeExpr, ParseError<'a>> {
+    let (_, expr) = (
+        punct('#'),
+        enclosed(Delimiter::Bracket, ident, "var embedding").map(NodeExpr::Embedding),
+    )
         .parse_next(input)?;
 
     Ok(expr)
