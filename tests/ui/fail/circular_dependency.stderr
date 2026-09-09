@@ -3,3 +3,9 @@ error: Task Graph Error: Circular dependency: b -> a
   |
 9 |         [b] -> [a];
   |                 ^
+
+error: Task Graph Error: Circular dependency: B -> a
+  --> tests/ui/fail/circular_dependency.rs:13:23
+   |
+13 |         a: A -> B -> [a];
+   |                       ^

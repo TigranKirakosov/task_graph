@@ -8,4 +8,8 @@ fn main() {
         a: A -> b: B;
         [b] -> [a];
     };
+
+    let _graph = task_graph! {
+        a: A -> B -> [a];
+    };
 }
