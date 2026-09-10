@@ -6,7 +6,6 @@ version = 4
 name = "action-orc"
 version = "0.1.0"
 dependencies = [
- "action-orc",
  "action-orc-core",
  "action-orc-engine",
  "action-orc-macros",
