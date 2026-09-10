@@ -1,21 +1,21 @@
-use ::task_graph::*;
+use ::action_orc::*;
 
 struct A;
 struct B;
 
 fn main() {
-    let _graph = task_graph! {
+    let _graph = orc! {
         a: A -> b: B;
         [b] -> [a];
     };
 
-    let _graph = task_graph! {
+    let _graph = orc! {
         a: A -> B -> [a];
     };
 
-    let combat = task_graph! { A; };
+    let combat = orc! { A; };
 
-    let _graph = task_graph! {
+    let _graph = orc! {
         A -> #[combat] -> B -> #[combat];
     };
 }

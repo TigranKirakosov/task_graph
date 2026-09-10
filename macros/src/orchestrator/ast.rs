@@ -4,7 +4,7 @@ use super::format_type;
 use super::parser::SpanInfo;
 
 #[derive(Debug)]
-pub(super) struct TaskGraphAst {
+pub(super) struct SyntaxTree {
     pub(super) graphs: Vec<Graph>,
 }
 

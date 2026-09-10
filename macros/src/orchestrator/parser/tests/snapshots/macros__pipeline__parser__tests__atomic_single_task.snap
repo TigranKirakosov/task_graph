@@ -1,0 +1,23 @@
+---
+source: macros/src/pipeline/parser/tests/mod.rs
+expression: ast
+---
+PipelineAst {
+    graphs: [
+        Graph {
+            entry: Declaration(
+                Task {
+                    var: Some(
+                        "a",
+                    ),
+                    typ: "TaskA",
+                },
+            ),
+            conns: [],
+            span_info: SpanInfo {
+                span: Span,
+                at_call_site: false,
+            },
+        },
+    ],
+}

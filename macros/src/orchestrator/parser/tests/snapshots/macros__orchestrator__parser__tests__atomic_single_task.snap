@@ -1,8 +1,8 @@
 ---
-source: macros/src/task_graph/parser/tests/mod.rs
+source: macros/src/orchestrator/parser/tests/mod.rs
 expression: ast
 ---
-TaskGraphAst {
+SyntaxTree {
     graphs: [
         Graph {
             entry: Declaration(

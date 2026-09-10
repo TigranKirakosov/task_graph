@@ -1,8 +1,8 @@
 ---
-source: macros/src/task_graph/parser/tests/mod.rs
+source: macros/src/pipeline/parser/tests/mod.rs
 expression: ast
 ---
-TaskGraphAst {
+PipelineAst {
     graphs: [
         Graph {
             entry: Declaration(

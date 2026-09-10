@@ -1,10 +1,10 @@
-use ::task_graph::*;
+use ::action_orc::*;
 
 struct A;
 struct B;
 
 fn main() {
-    let _graph = task_graph! {
+    let _graph = orc! {
         a: A -> b: B;
 
         a: B;

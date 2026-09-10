@@ -1,6 +1,6 @@
-use crate::task_graph::parser::ext::TokenStreamParseExt;
-
 use super::ast::*;
+use super::parser::ext::TokenStreamParseExt;
+
 use proc_macro2::{Delimiter, Span, TokenStream as TokenStream2, TokenTree};
 use winnow::{
     ModalResult, Parser,
@@ -44,7 +44,7 @@ pub(crate) fn current_span(input: &[TokenTree]) -> SpanInfo {
     }
 }
 
-pub(super) fn parse(stream: TokenStream2) -> Result<TaskGraphAst, syn::Error> {
+pub(super) fn parse(stream: TokenStream2) -> Result<SyntaxTree, syn::Error> {
     let tokens: Vec<TokenTree> = stream.into_iter().collect();
     let mut input = tokens.as_slice();
 
@@ -57,16 +57,16 @@ pub(super) fn parse(stream: TokenStream2) -> Result<TaskGraphAst, syn::Error> {
 
             Err(syn::Error::new(
                 parse_err.span_info.span,
-                format!("Failed to parse task schedule: {}", parse_err.inner),
+                format!("Failed to parse pipeline: {}", parse_err.inner),
             ))
         }
     }
 }
 
-fn ast<'a>(input: &mut &'a [TokenTree]) -> ModalResult<TaskGraphAst, ParseError<'a>> {
+fn ast<'a>(input: &mut &'a [TokenTree]) -> ModalResult<SyntaxTree, ParseError<'a>> {
     let graphs = separated(0.., graph, punct(';')).parse_next(input)?;
 
-    Ok(TaskGraphAst { graphs })
+    Ok(SyntaxTree { graphs })
 }
 
 /// (a: A | b: B) -> C -> [d];

@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 
-mod task_graph;
+mod orchestrator;
 
 #[proc_macro]
-pub fn task_graph(input: TokenStream) -> TokenStream {
-    task_graph::task_graph(input)
+pub fn orc(input: TokenStream) -> TokenStream {
+    orchestrator::orc(input)
 }

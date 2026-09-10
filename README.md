@@ -1,8 +1,13 @@
-# Task Graph
+# An Action Orchestrator
 
-A declarative, event-driven task scheduler for Rust.
+A declarative DSL for composing hierarchical execution graphs in Rust.
 
-# Planned Features
+`action-orc` provides a straightforward framework to model and drive high-level app control flows:
+- Document execution actions in a static, yet composable graph notation
+- Define event resolvers to map custom app logic to designated actions
+- Drive action transitions within a customizable, reactive network
+
+## Planned Features
 - [x] fluent and complete [DSL](DSL.md):
     - [x] IDE support
     - [x] compilation error spans
@@ -12,39 +17,46 @@ A declarative, event-driven task scheduler for Rust.
     - [ ] [*fallback*](DSL.md#fallback)
 - [ ] graph visualizer
 
-# Integrations
+## Planned Integrations
 - [ ] [Bevy plugin](TODO: put link to plugin crate)
 
 ## Syntax Overview
+> Declare your battle formations with the `orc!` macro, and let the Warchief lead the horde to victory!
 
-- Declare a task with handle `task: Marker` or anonymously `Marker`
-- Declare a dependency between tasks: `lhs -> rhs` (reading, **lhs** blocks **rhs**)
-- Declare a jointed graph set:
-    - `a` and `x` are jointed by `[b] -> y`
-    - `a` and `m` are jointed by `[in] -> [m]`
-- Bind already declared tasks: `[b] -> y`
-- Schedule grouped tasks to run either in *Sequence* or *Parallel* at runtime:
-    - declare task sequence: `a -> (b, c)`
-    - declare parallel tasks: `x -> (y | z)`
+- Declare nodes: bind handles (`node: Marker`) or match anonymously (`Marker`)
+- Map dependencies: `lhs -> rhs` (i.e., **lhs** blocks **rhs**)
+- Bind already declared nodes: `[b] -> y`
+- Compose graphs: dynamically embed sub-graphs (`A -> #[sub] -> B`)
+- Group nodes into ordered *Sequences* or *Parallel* branches:
+    - Sequence block: `(a, b, c)`
+    - Parallel block: `(x | y | z)`
 
 ```rust
-fn example_schedule(in) {
-    task_graph! {
-        TaskA -> (
-            b: TaskB,
-            TaskC,
-            [in]
-        );
+use action_orc::*;
 
-        m: TaskM;
-    
-        TaskX -> (
-            [b] -> TaskY
-            |
-            [in] -> [m] // `m` wont start until `in` (input graph) is resolved
+fn warchief_campaign(reinforce: &Graph) -> Graph {
+    orc! {
+        // Define first timeline
+        BuildCamp -> (
+            gather: GatherResources,
+            // make #[reinforce] dependant on upstream nodes
+            (Defend | RequestReinforcements) -> #[reinforce],
         );
+    
+        // Define second parallel timline, linked with the first one by [gather] and #[reinforce] nodes
+        prepare: PrepareCampaign -> (
+            [gather] -> BuildWarmachines
+            | TrainGrunts
+            | #[reinforce], // make this timline dependant on #[reinforce] aswell
+        );
+        
+        // Declare exit node
+        victory: CelebrateVictory;
+
+        // Define path to exit
+        [prepare] -> AssembleArmy -> LaunchCampaign -> [victory];
     }
-};
+}
 ```
 
 ## License

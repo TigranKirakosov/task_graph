@@ -4,9 +4,10 @@ use quote::{format_ident, quote, quote_spanned};
 use std::collections::{HashMap, HashSet};
 use syn::{Ident, spanned::Spanned};
 
-use crate::task_graph::format_type;
-
-use super::ast::{self, GroupBlock, NodeExpr, SchedulingMode, Task};
+use super::{
+    ast::{self, GroupBlock, NodeExpr, SchedulingMode, Task},
+    format_type,
+};
 
 #[derive(Default)]
 struct Context {
@@ -57,7 +58,7 @@ struct Sink(NodeBound);
 
 type TypeStr = String;
 
-pub(super) fn generate(ast: ast::TaskGraphAst) -> TokenStream {
+pub(super) fn generate(ast: ast::SyntaxTree) -> TokenStream {
     let mut cx = Context::default();
 
     for graph in ast.graphs {

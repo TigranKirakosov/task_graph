@@ -1,9 +1,9 @@
 use core::*;
 use std::sync::{Arc, Mutex};
 
-use macros::task_graph;
+use macros::orc;
 
-use crate::schedule::*;
+use super::reactor::*;
 
 macro_rules! declare_tags {
     ($($type:ident),* $(,)?) => {
@@ -57,7 +57,7 @@ fn simple_graph() {
 fn simple_graph_macro() {
     declare_tags!(A, B, C, D, E, F);
 
-    let g = task_graph!(
+    let g = orc!(
         A -> B -> C -> D -> E -> F;
     );
 
@@ -198,7 +198,7 @@ fn diamond_dependency() {
 fn diamond_dependency_macro() {
     declare_tags!(A, B, C, D);
 
-    let g = task_graph!(
+    let g = orc!(
         a: A; d: D;
 
         [a] -> B -> [d];
@@ -225,29 +225,29 @@ fn diamond_dependency_macro() {
 fn lifecycle_hooks() {
     declare_tags!(A, B, C);
 
-    let g = task_graph!(
+    let g = orc!(
         A -> B -> C;
     );
 
-    let mut runtime = Schedule::from(g, |meta| meta.type_name());
+    let mut reactor = Reactor::from(g, |meta| meta.type_name());
 
-    let q = Arc::new(Mutex::new(Vec::new()));
-    let q_clone = q.clone();
-    let q_resolver = Arc::new(move |id, cycle| {
-        q_clone.lock().unwrap().push((id, cycle));
+    let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
+    let log_clone = lifecycle_log.clone();
+    let lifecycle_logger = Arc::new(move |id, cycle| {
+        log_clone.lock().unwrap().push((id, cycle));
     });
 
-    runtime.subscribe::<A>(q_resolver.clone());
-    runtime.subscribe::<B>(q_resolver.clone());
-    runtime.subscribe::<C>(q_resolver.clone());
-    assert_eq!(*q.lock().unwrap(), vec![]);
+    reactor.listen_for::<A>(lifecycle_logger.clone());
+    reactor.listen_for::<B>(lifecycle_logger.clone());
+    reactor.listen_for::<C>(lifecycle_logger.clone());
+    assert_eq!(*lifecycle_log.lock().unwrap(), vec![]);
 
-    runtime.init();
-    assert_eq!(*q.lock().unwrap(), vec![("A", Event::Started)]);
+    reactor.init();
+    assert_eq!(*lifecycle_log.lock().unwrap(), vec![("A", Event::Started)]);
 
-    runtime.resolve_task(&"A");
+    reactor.resolve(&"A");
     assert_eq! {
-        *q.lock().unwrap(),
+        *lifecycle_log.lock().unwrap(),
         vec![
             ("A", Event::Started),
             ("A", Event::Resolved),
@@ -255,9 +255,9 @@ fn lifecycle_hooks() {
         ]
     };
 
-    runtime.resolve_task(&"B");
+    reactor.resolve(&"B");
     assert_eq! {
-        *q.lock().unwrap(),
+        *lifecycle_log.lock().unwrap(),
         vec![
             ("A", Event::Started),
             ("A", Event::Resolved),
@@ -267,9 +267,9 @@ fn lifecycle_hooks() {
         ]
     };
 
-    runtime.resolve_task(&"C");
+    reactor.resolve(&"C");
     assert_eq! {
-        *q.lock().unwrap(),
+        *lifecycle_log.lock().unwrap(),
         vec![
             ("A", Event::Started),
             ("A", Event::Resolved),
@@ -282,7 +282,7 @@ fn lifecycle_hooks() {
 }
 
 #[test]
-fn nested_schedule_composition() {
+fn nested_pipeline_composition() {
     declare_tags!(Enter, Exit);
     declare_tags!(SpawnEnemies, Fight);
     declare_tags!(RollLoot, PickTreasure);
@@ -311,66 +311,72 @@ fn nested_schedule_composition() {
     let combat_bounds = room.merge(&combat, vec![enter]);
     let _loot_bounds = room.merge(&loot, combat_bounds.sinks);
 
-    let mut runtime = Schedule::from(room, |meta| meta.type_name());
+    let mut reactor = Reactor::from(room, |meta| meta.type_name());
 
-    let q = Arc::new(Mutex::new(Vec::new()));
-    let q_clone = q.clone();
-    runtime.subscribe::<Exit>(move |id, event| {
-        q_clone.lock().unwrap().push((id, event));
+    let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
+    let log_clone = lifecycle_log.clone();
+    reactor.listen_for::<Exit>(move |id, event| {
+        log_clone.lock().unwrap().push((id, event));
     });
 
-    runtime.init();
-    runtime.resolve_task(&"Enter");
-    runtime.resolve_task(&"SpawnEnemies");
-    runtime.resolve_task(&"Fight");
-    runtime.resolve_task(&"RollLoot");
+    reactor.init();
+    reactor.resolve(&"Enter");
+    reactor.resolve(&"SpawnEnemies");
+    reactor.resolve(&"Fight");
+    reactor.resolve(&"RollLoot");
 
-    assert!(q.lock().unwrap().is_empty(), "Exit blocked");
+    assert!(lifecycle_log.lock().unwrap().is_empty(), "Exit blocked");
 
-    runtime.resolve_task(&"PickTreasure"); // last task before Exit
-    assert_eq!(*q.lock().unwrap(), vec![("Exit", Event::Started)]);
+    reactor.resolve(&"PickTreasure"); // last task before Exit
+    assert_eq!(
+        *lifecycle_log.lock().unwrap(),
+        vec![("Exit", Event::Started)]
+    );
 }
 
 #[test]
-fn nested_schedule_composition_macro() {
+fn nested_pipeline_composition_macro() {
     declare_tags!(Enter, Exit);
     declare_tags!(SpawnEnemies, Fight);
     declare_tags!(RollLoot, PickTreasure);
 
     fn room(a: &Graph, b: &Graph) -> Graph {
-        task_graph! {
+        orc! {
             Enter -> #[a] -> #[b] -> Exit;
         }
     }
 
-    let combat = task_graph!(
+    let combat = orc!(
         SpawnEnemies -> Fight;
     );
 
-    let loot = task_graph!(
+    let loot = orc!(
         RollLoot -> PickTreasure;
     );
 
     let composed_room = room(&combat, &loot);
 
-    let mut runtime = Schedule::from(composed_room, |meta| meta.type_name());
+    let mut reactor = Reactor::from(composed_room, |meta| meta.type_name());
 
-    let q = Arc::new(Mutex::new(Vec::new()));
-    let q_clone = q.clone();
-    runtime.subscribe::<Exit>(move |id, event| {
-        q_clone.lock().unwrap().push((id, event));
+    let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
+    let log_clone = lifecycle_log.clone();
+    reactor.listen_for::<Exit>(move |id, event| {
+        log_clone.lock().unwrap().push((id, event));
     });
 
-    runtime.init();
-    runtime.resolve_task(&"Enter");
-    runtime.resolve_task(&"SpawnEnemies");
-    runtime.resolve_task(&"Fight");
-    runtime.resolve_task(&"RollLoot");
+    reactor.init();
+    reactor.resolve(&"Enter");
+    reactor.resolve(&"SpawnEnemies");
+    reactor.resolve(&"Fight");
+    reactor.resolve(&"RollLoot");
 
-    assert!(q.lock().unwrap().is_empty(), "Exit blocked");
+    assert!(lifecycle_log.lock().unwrap().is_empty(), "Exit blocked");
 
-    runtime.resolve_task(&"PickTreasure"); // last task before Exit
-    assert_eq!(*q.lock().unwrap(), vec![("Exit", Event::Started)]);
+    reactor.resolve(&"PickTreasure"); // last task before Exit
+    assert_eq!(
+        *lifecycle_log.lock().unwrap(),
+        vec![("Exit", Event::Started)]
+    );
 }
 
 /// G: (a | b) -> c
@@ -415,12 +421,12 @@ fn merge_into_parallel_set_macro() {
     declare_tags!(X, Y);
     declare_tags!(A, B, C);
 
-    let h = task_graph!(
+    let h = orc!(
         X -> Y;
     );
 
     // (a | b) -> #[sub] -> c
-    let g = task_graph!(
+    let g = orc!(
         (A | B) -> #[h] -> C;
     );
 
@@ -442,11 +448,11 @@ fn embed_graph_inside_parallel_group_macro() {
     declare_tags!(X, Y);
     declare_tags!(Enter, A, Exit);
 
-    let sub = task_graph!(
+    let sub = orc!(
         X -> Y;
     );
 
-    let g = task_graph!(
+    let g = orc!(
         Enter -> ( A | #[sub] ) -> Exit;
     );
 
@@ -471,11 +477,11 @@ fn embed_graph_fan_out_to_parallel_set_macro() {
     declare_tags!(X, Y);
     declare_tags!(A, B, C);
 
-    let sub = task_graph!(
+    let sub = orc!(
         X -> Y;
     );
 
-    let g = task_graph!(
+    let g = orc!(
         #[sub] -> (A | B) -> C;
     );
 
@@ -492,9 +498,9 @@ fn embed_graph_fan_out_to_parallel_set_macro() {
 #[test]
 fn standalone_embedding_macro() {
     declare_tags!(A, B);
-    let sub = task_graph!(A -> B;);
+    let sub = orc!(A -> B;);
 
-    let g = task_graph!(
+    let g = orc!(
         #[sub];
     );
 

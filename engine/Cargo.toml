@@ -1,5 +1,5 @@
 [package]
-name = "schedule"
+name = "engine"
 authors.workspace = true
 edition.workspace = true
 version.workspace = true

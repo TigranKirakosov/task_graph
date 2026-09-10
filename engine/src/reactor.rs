@@ -11,7 +11,7 @@ pub enum Event {
     Resolved,
 }
 
-pub struct Schedule<I: ExternId> {
+pub struct Reactor<I: ExternId> {
     pub(crate) graph: Graph,
     pub(crate) in_degree: Vec<usize>,
     pub(crate) listeners: HashMap<TypeId, Vec<Box<dyn Listener<I>>>>,
@@ -19,12 +19,12 @@ pub struct Schedule<I: ExternId> {
     pub(crate) local_to_extern: Vec<I>,
 }
 
-impl<I> Schedule<I>
+impl<I> Reactor<I>
 where
     I: ExternId,
 {
     pub fn from(graph: Graph, provider: fn(&Meta) -> I) -> Self {
-        let mut schedule = Self {
+        let mut reactor = Self {
             in_degree: graph.in_degree().to_vec(),
             graph,
             listeners: HashMap::new(),
@@ -32,13 +32,13 @@ where
             local_to_extern: Vec::new(),
         };
 
-        for (task_id, meta) in schedule.graph.meta().iter().enumerate() {
+        for (local_id, meta) in reactor.graph.meta().iter().enumerate() {
             let extern_id = provider(meta);
-            schedule.local_to_extern.push(extern_id.clone());
-            schedule.extern_to_local.insert(extern_id, task_id);
+            reactor.local_to_extern.push(extern_id.clone());
+            reactor.extern_to_local.insert(extern_id, local_id);
         }
 
-        schedule
+        reactor
     }
 
     pub fn init(&mut self) {
@@ -51,7 +51,7 @@ where
         self.in_degree.copy_from_slice(self.graph.in_degree());
     }
 
-    pub fn subscribe<T: Marker>(&mut self, listener: impl Listener<I>) {
+    pub fn listen_for<T: Marker>(&mut self, listener: impl Listener<I>) {
         let type_id = TypeId::of::<T>();
         self.listeners
             .entry(type_id)
@@ -70,7 +70,7 @@ where
         }
     }
 
-    pub fn resolve_task(&mut self, id: &I) {
+    pub fn resolve(&mut self, id: &I) {
         let Some(&node_id) = self.extern_to_local.get(id) else {
             panic!("Tried to resolve missing id: {id:?}")
         };

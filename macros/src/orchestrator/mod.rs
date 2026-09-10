@@ -6,7 +6,7 @@ mod ast;
 mod codegen;
 mod parser;
 
-pub(crate) fn task_graph(input: TokenStream) -> TokenStream {
+pub(crate) fn orc(input: TokenStream) -> TokenStream {
     match parser::parse(input.into()) {
         Ok(ast) => codegen::generate(ast),
         Err(err) => {
