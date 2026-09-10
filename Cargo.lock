@@ -7,10 +7,34 @@ name = "action-orc"
 version = "0.1.0"
 dependencies = [
  "action-orc",
- "core",
- "engine",
- "macros",
+ "action-orc-core",
+ "action-orc-engine",
+ "action-orc-macros",
  "trybuild",
+]
+
+[[package]]
+name = "action-orc-core"
+version = "0.1.0"
+
+[[package]]
+name = "action-orc-engine"
+version = "0.1.0"
+dependencies = [
+ "action-orc-core",
+ "action-orc-macros",
+]
+
+[[package]]
+name = "action-orc-macros"
+version = "0.1.0"
+dependencies = [
+ "action-orc-core",
+ "insta",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "winnow 0.6.26",
 ]
 
 [[package]]
@@ -37,22 +61,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.1.0"
-
-[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
-
-[[package]]
-name = "engine"
-version = "0.1.0"
-dependencies = [
- "core",
- "macros",
-]
 
 [[package]]
 name = "equivalent"
@@ -139,18 +151,6 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
-
-[[package]]
-name = "macros"
-version = "0.1.0"
-dependencies = [
- "core",
- "insta",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
- "winnow 0.6.26",
-]
 
 [[package]]
 name = "memchr"

@@ -1,7 +1,8 @@
 use core::*;
 use std::sync::{Arc, Mutex};
 
-use macros::orc;
+use action_orc_core::*;
+use action_orc_macros::orc;
 
 use super::reactor::*;
 

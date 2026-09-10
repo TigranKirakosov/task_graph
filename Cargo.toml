@@ -7,9 +7,14 @@ license.workspace = true
 rust-version.workspace = true
 
 [workspace.package]
-authors = ["Tigran Kirakosov <tkirakosov96@gmail.com>"]
-edition = "2024"
 version = "0.1.0"
+edition = "2024"
+authors = ["Tigran Kirakosov <tkirakosov96@gmail.com>"]
+description = "A declarative DSL for composing hierarchical execution graphs in Rust."
+repository = "https://github.com/TigranKirakosov/action_orc"
+readme = "README.md"
+keywords = ["dsl", "graph", "workflow"]
+categories = ["development-tools"]
 license = "MIT OR Apache-2.0"
 rust-version = "1.95.0"
 
@@ -22,9 +27,9 @@ members = [
 ]
 
 [dependencies]
-core = { path = "core", version = "0.1.0" }
-engine = { path = "engine", version = "0.1.0" }
-macros = { path = "macros", version = "0.1.0" }
+action-orc-core = { path = "core", version = "0.1.0" }
+action-orc-engine = { path = "engine", version = "0.1.0" }
+action-orc-macros = { path = "macros", version = "0.1.0" }
 
 [dev-dependencies]
 trybuild = "1.0.121"

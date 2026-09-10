@@ -12,7 +12,7 @@ use super::{
 #[derive(Default)]
 struct Context {
     graph_ident: GraphIdent,
-    compile_graph: core::Graph,
+    compile_graph: action_orc_core::Graph,
     decls: Vec<TokenStream2>,
     links: Vec<TokenStream2>,
     parallel_group_id_counter: usize,
@@ -405,7 +405,7 @@ impl Context {
             }
         }
 
-        if let Err(core::GraphError::CycleDetected) = self.compile_graph.sort_ordered() {
+        if let Err(action_orc_core::GraphError::CycleDetected) = self.compile_graph.sort_ordered() {
             let from_name = match from {
                 NodeBound::Literal(idents) => idents
                     .first()
