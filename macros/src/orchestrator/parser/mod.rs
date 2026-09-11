@@ -4,7 +4,7 @@ use super::parser::ext::TokenStreamParseExt;
 use proc_macro2::{Delimiter, Span, TokenStream as TokenStream2, TokenTree};
 use winnow::{
     ModalResult, Parser,
-    combinator::{alt, preceded, repeat, separated},
+    combinator::{alt, opt, preceded, repeat, separated},
     error::{ErrMode, ParserError, StrContext, StrContextValue},
     stream::Stream,
 };
@@ -178,7 +178,11 @@ fn sequence_block<'a>(
 ) -> impl FnMut(&mut &'a [TokenTree]) -> ModalResult<GroupBlock, ParseError<'a>> {
     move |input: &mut &'a [TokenTree]| {
         let checkpoint = input.checkpoint();
-        match separated(2.., graph, punct(',')).parse_next(input) {
+
+        match (separated(2.., graph, punct(',')), opt(punct(',')))
+            .map(|(graphs, _)| graphs)
+            .parse_next(input)
+        {
             Ok(graphs) => {
                 let block = GroupBlock {
                     mode: SchedulingMode::Sequence,

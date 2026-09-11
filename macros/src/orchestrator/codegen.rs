@@ -103,7 +103,10 @@ impl Context {
         // Edge case: graph starts with embedded sub-graph:
         // #[sub] -> (...)
         // Immediately merge it with master graph, storing its shifted endpoints
-        if let NodeBound::Graph(sub) = &source.0 {
+        if let NodeBound::Graph(sub) = &source.0
+            && !self.embeddings.contains(sub)
+        {
+            self.embeddings.insert(sub.clone());
             let GraphIdent(graph) = &self.graph_ident;
             let (sub_source, sub_sink) = IdFactory::graph_bounds(sub);
             self.links.push(quote! {
@@ -127,7 +130,7 @@ impl Context {
 
             let (sub_source, sub_sink) = self.process_node(conn);
             self.track_edge(node_span, &prev_sink, &sub_source);
-            self.stich_nodes(&prev_sink, &sub_source);
+            self.stitch_nodes(&prev_sink, &sub_source);
 
             prev_sink = sub_sink
         }
@@ -211,7 +214,7 @@ impl Context {
                     let span = graph.span_info.span;
                     let (sub_source, sub_sink) = self.process_graph(graph);
                     self.track_edge(span, &prev_sink, &sub_source);
-                    self.stich_nodes(&prev_sink, &sub_source);
+                    self.stitch_nodes(&prev_sink, &sub_source);
 
                     prev_sink = sub_sink
                 }
@@ -221,7 +224,7 @@ impl Context {
         }
     }
 
-    fn stich_nodes(&mut self, Sink(upstream): &Sink, Source(downstream): &Source) {
+    fn stitch_nodes(&mut self, Sink(upstream): &Sink, Source(downstream): &Source) {
         let GraphIdent(graph) = &self.graph_ident;
 
         match (upstream, downstream) {
@@ -240,6 +243,7 @@ impl Context {
             (NodeBound::Graph(from), NodeBound::Graph(to)) => {
                 let (_, f_sink) = IdFactory::graph_bounds(from);
                 let (t_source, t_sink) = IdFactory::graph_bounds(to);
+                self.embeddings.insert(to.clone());
                 self.links.push(quote! {
                     let merged = #graph.merge(&#to, #f_sink);
                     let #t_source = merged.sources;
@@ -250,6 +254,7 @@ impl Context {
             // (A | B) -> #[H]
             (NodeBound::Literal(from), NodeBound::Graph(to)) => {
                 let (t_source, t_sink) = IdFactory::graph_bounds(to);
+                self.embeddings.insert(to.clone());
                 self.links.push(quote! {
                     let merged = #graph.merge(&#to, vec![#(#from),*]);
                     let #t_source = merged.sources;
@@ -294,6 +299,7 @@ impl Context {
             // ((..) | (..)) -> #[H]
             (NodeBound::ParallelGroup(from), NodeBound::Graph(to)) => {
                 let (t_source, t_sink) = IdFactory::graph_bounds(to);
+                self.embeddings.insert(to.clone());
                 self.links.push(quote! {
                     let merged = #graph.merge(&#to, #from.clone());
                     let #t_source = merged.sources;
@@ -366,7 +372,6 @@ impl Context {
     }
 
     fn process_embedding(&mut self, embedding: Ident) -> (Source, Sink) {
-        self.embeddings.insert(embedding.clone());
         NodeBound::graph(embedding)
     }
 

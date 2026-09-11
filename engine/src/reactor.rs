@@ -23,22 +23,23 @@ impl<I> Reactor<I>
 where
     I: ExternId,
 {
-    pub fn from(graph: Graph, provider: fn(&Meta) -> I) -> Self {
-        let mut reactor = Self {
+    pub fn from(graph: Graph, mut id_provider: impl IdProvider<I>) -> Self {
+        let mut extern_to_local = HashMap::new();
+        let mut local_to_extern = Vec::new();
+
+        for (local_id, meta) in graph.meta().iter().enumerate() {
+            let extern_id = id_provider.provide(meta);
+            local_to_extern.push(extern_id.clone());
+            extern_to_local.insert(extern_id, local_id);
+        }
+
+        Self {
             in_degree: graph.in_degree().to_vec(),
             graph,
             listeners: HashMap::new(),
-            extern_to_local: HashMap::new(),
-            local_to_extern: Vec::new(),
-        };
-
-        for (local_id, meta) in reactor.graph.meta().iter().enumerate() {
-            let extern_id = provider(meta);
-            reactor.local_to_extern.push(extern_id.clone());
-            reactor.extern_to_local.insert(extern_id, local_id);
+            extern_to_local,
+            local_to_extern,
         }
-
-        reactor
     }
 
     pub fn init(&mut self) {
@@ -51,8 +52,7 @@ where
         self.in_degree.copy_from_slice(self.graph.in_degree());
     }
 
-    pub fn listen_for<T: Marker>(&mut self, listener: impl Listener<I>) {
-        let type_id = TypeId::of::<T>();
+    pub fn listen_for(&mut self, type_id: TypeId, listener: impl Listener<I>) {
         self.listeners
             .entry(type_id)
             .or_default()
@@ -111,5 +111,19 @@ where
 {
     fn notify(&self, id: I, cycle: Event) {
         (**self).notify(id, cycle);
+    }
+}
+
+pub trait IdProvider<I: ExternId> {
+    fn provide(&mut self, meta: &Meta) -> I;
+}
+
+impl<I, F> IdProvider<I> for F
+where
+    I: ExternId,
+    F: FnMut(&Meta) -> I,
+{
+    fn provide(&mut self, meta: &Meta) -> I {
+        self(meta)
     }
 }

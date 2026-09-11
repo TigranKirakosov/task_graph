@@ -1,5 +1,8 @@
 use core::*;
-use std::sync::{Arc, Mutex};
+use std::{
+    any::TypeId,
+    sync::{Arc, Mutex},
+};
 
 use action_orc_core::*;
 use action_orc_macros::orc;
@@ -230,7 +233,7 @@ fn lifecycle_hooks() {
         A -> B -> C;
     );
 
-    let mut reactor = Reactor::from(g, |meta| meta.type_name());
+    let mut reactor = Reactor::from(g, |meta: &Meta| meta.type_name());
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
@@ -238,9 +241,9 @@ fn lifecycle_hooks() {
         log_clone.lock().unwrap().push((id, cycle));
     });
 
-    reactor.listen_for::<A>(lifecycle_logger.clone());
-    reactor.listen_for::<B>(lifecycle_logger.clone());
-    reactor.listen_for::<C>(lifecycle_logger.clone());
+    reactor.listen_for(TypeId::of::<A>(), lifecycle_logger.clone());
+    reactor.listen_for(TypeId::of::<B>(), lifecycle_logger.clone());
+    reactor.listen_for(TypeId::of::<C>(), lifecycle_logger.clone());
     assert_eq!(*lifecycle_log.lock().unwrap(), vec![]);
 
     reactor.init();
@@ -312,11 +315,11 @@ fn nested_pipeline_composition() {
     let combat_bounds = room.merge(&combat, vec![enter]);
     let _loot_bounds = room.merge(&loot, combat_bounds.sinks);
 
-    let mut reactor = Reactor::from(room, |meta| meta.type_name());
+    let mut reactor = Reactor::from(room, |meta: &Meta| meta.type_name());
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
-    reactor.listen_for::<Exit>(move |id, event| {
+    reactor.listen_for(TypeId::of::<Exit>(), move |id, event| {
         log_clone.lock().unwrap().push((id, event));
     });
 
@@ -357,11 +360,11 @@ fn nested_pipeline_composition_macro() {
 
     let composed_room = room(&combat, &loot);
 
-    let mut reactor = Reactor::from(composed_room, |meta| meta.type_name());
+    let mut reactor = Reactor::from(composed_room, |meta: &Meta| meta.type_name());
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
-    reactor.listen_for::<Exit>(move |id, event| {
+    reactor.listen_for(TypeId::of::<Exit>(), move |id, event| {
         log_clone.lock().unwrap().push((id, event));
     });
 

@@ -42,14 +42,14 @@ fn warchief_campaign(reinforce: &Graph) -> Graph {
             // make #[reinforce] dependant on upstream nodes
             (Defend | RequestReinforcements) -> #[reinforce],
         );
-    
+
         // Define second parallel timline, linked with the first one by [gather] and #[reinforce] nodes
         prepare: PrepareCampaign -> (
             [gather] -> BuildWarmachines
             | TrainGrunts
-            | #[reinforce], // make this timline dependant on #[reinforce] aswell
+            | #[reinforce] // make this timline dependant on #[reinforce] aswell
         );
-        
+
         // Declare exit node
         victory: CelebrateVictory;
 
