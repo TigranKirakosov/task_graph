@@ -2,10 +2,10 @@
 
 A declarative DSL for composing hierarchical execution graphs in Rust.
 
-`action-orc` provides a straightforward framework to model and drive high-level app control flows:
-- Document execution actions in a static, yet composable graph notation
+`action-orc` provides a straightforward framework:
+- Document action flows in a static, yet composable graph notation
 - Define event resolvers to map custom app logic to designated actions
-- Drive action transitions within a customizable, reactive network
+- Drive action transitions with customizable gating logic
 
 ## Planned Features
 - [x] fluent and complete [DSL](DSL.md):
