@@ -237,50 +237,56 @@ fn lifecycle_hooks() {
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
-    let lifecycle_logger = Arc::new(move |id, cycle| {
-        log_clone.lock().unwrap().push((id, cycle));
+    let lifecycle_logger = Arc::new(move |id, event| {
+        log_clone.lock().unwrap().push((id, event));
     });
 
-    reactor.listen_for(TypeId::of::<A>(), lifecycle_logger.clone());
-    reactor.listen_for(TypeId::of::<B>(), lifecycle_logger.clone());
-    reactor.listen_for(TypeId::of::<C>(), lifecycle_logger.clone());
+    reactor
+        .listen_for(TypeId::of::<A>(), lifecycle_logger.clone())
+        .unwrap();
+    reactor
+        .listen_for(TypeId::of::<B>(), lifecycle_logger.clone())
+        .unwrap();
+    reactor
+        .listen_for(TypeId::of::<C>(), lifecycle_logger.clone())
+        .unwrap();
     assert_eq!(*lifecycle_log.lock().unwrap(), vec![]);
 
-    reactor.init();
+    reactor.init().unwrap();
     assert_eq!(*lifecycle_log.lock().unwrap(), vec![("A", Event::Started)]);
 
-    reactor.resolve(&"A");
+    reactor.resolve(&"A", Resolution::Finished).unwrap();
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
             ("A", Event::Started),
-            ("A", Event::Resolved),
+            ("A", Event::Resolved(Resolution::Finished)),
             ("B", Event::Started),
         ]
     };
 
-    reactor.resolve(&"B");
+    reactor.resolve(&"B", Resolution::Finished).unwrap();
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
             ("A", Event::Started),
-            ("A", Event::Resolved),
+            ("A", Event::Resolved(Resolution::Finished)),
             ("B", Event::Started),
-            ("B", Event::Resolved),
+            ("B", Event::Resolved(Resolution::Finished)),
             ("C", Event::Started),
         ]
     };
 
-    reactor.resolve(&"C");
+    reactor.resolve(&"C", Resolution::Finished).unwrap();
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
             ("A", Event::Started),
-            ("A", Event::Resolved),
+            ("A", Event::Resolved(Resolution::Finished)),
             ("B", Event::Started),
-            ("B", Event::Resolved),
+            ("B", Event::Resolved(Resolution::Finished)),
             ("C", Event::Started),
-            ("C", Event::Resolved),
+            ("C", Event::Resolved(Resolution::Finished)),
         ]
     };
 }
@@ -319,19 +325,25 @@ fn nested_pipeline_composition() {
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
-    reactor.listen_for(TypeId::of::<Exit>(), move |id, event| {
-        log_clone.lock().unwrap().push((id, event));
-    });
+    reactor
+        .listen_for(TypeId::of::<Exit>(), move |id, event| {
+            log_clone.lock().unwrap().push((id, event));
+        })
+        .unwrap();
 
-    reactor.init();
-    reactor.resolve(&"Enter");
-    reactor.resolve(&"SpawnEnemies");
-    reactor.resolve(&"Fight");
-    reactor.resolve(&"RollLoot");
+    reactor.init().unwrap();
+    reactor.resolve(&"Enter", Resolution::Finished).unwrap();
+    reactor
+        .resolve(&"SpawnEnemies", Resolution::Finished)
+        .unwrap();
+    reactor.resolve(&"Fight", Resolution::Finished).unwrap();
+    reactor.resolve(&"RollLoot", Resolution::Finished).unwrap();
 
     assert!(lifecycle_log.lock().unwrap().is_empty(), "Exit blocked");
 
-    reactor.resolve(&"PickTreasure"); // last task before Exit
+    reactor
+        .resolve(&"PickTreasure", Resolution::Finished)
+        .unwrap(); // last task before Exit
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
         vec![("Exit", Event::Started)]
@@ -364,19 +376,25 @@ fn nested_pipeline_composition_macro() {
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
-    reactor.listen_for(TypeId::of::<Exit>(), move |id, event| {
-        log_clone.lock().unwrap().push((id, event));
-    });
+    reactor
+        .listen_for(TypeId::of::<Exit>(), move |id, event| {
+            log_clone.lock().unwrap().push((id, event));
+        })
+        .unwrap();
 
-    reactor.init();
-    reactor.resolve(&"Enter");
-    reactor.resolve(&"SpawnEnemies");
-    reactor.resolve(&"Fight");
-    reactor.resolve(&"RollLoot");
+    reactor.init().unwrap();
+    reactor.resolve(&"Enter", Resolution::Finished).unwrap();
+    reactor
+        .resolve(&"SpawnEnemies", Resolution::Finished)
+        .unwrap();
+    reactor.resolve(&"Fight", Resolution::Finished).unwrap();
+    reactor.resolve(&"RollLoot", Resolution::Finished).unwrap();
 
     assert!(lifecycle_log.lock().unwrap().is_empty(), "Exit blocked");
 
-    reactor.resolve(&"PickTreasure"); // last task before Exit
+    reactor
+        .resolve(&"PickTreasure", Resolution::Finished)
+        .unwrap(); // last task before Exit
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
         vec![("Exit", Event::Started)]

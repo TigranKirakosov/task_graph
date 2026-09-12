@@ -8,7 +8,20 @@ impl<T: std::hash::Hash + std::fmt::Debug + Eq + Clone + Send + Sync + 'static> 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Event {
     Started,
-    Resolved,
+    Resolved(Resolution),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Resolution {
+    Finished,
+    Cancelled,
+}
+
+#[derive(Debug)]
+pub enum ReactorError {
+    MissingListener,
+    ExternIdMismatch,
+    UnknownTypeId,
 }
 
 pub struct Reactor<I: ExternId> {
@@ -42,40 +55,57 @@ where
         }
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self) -> Result<(), ReactorError> {
         for root in self.graph.sources().collect::<Vec<_>>() {
-            self.notify(root, Event::Started);
+            self.notify(root, Event::Started)?;
         }
+        Ok(())
     }
 
     pub fn reset(&mut self) {
         self.in_degree.copy_from_slice(self.graph.in_degree());
     }
 
-    pub fn listen_for(&mut self, type_id: TypeId, listener: impl Listener<I>) {
+    pub fn listen_for(
+        &mut self,
+        type_id: TypeId,
+        listener: impl Listener<I>,
+    ) -> Result<(), ReactorError> {
+        let type_exists = self.graph.meta().iter().any(|m| *m.type_id() == type_id);
+        if !type_exists {
+            return Err(ReactorError::UnknownTypeId);
+        }
+
         self.listeners
             .entry(type_id)
             .or_default()
             .push(Box::new(listener));
+        Ok(())
     }
 
-    fn notify(&self, id: NodeId, cycle: Event) {
+    fn notify(&self, id: NodeId, event: Event) -> Result<(), ReactorError> {
         let meta = &self.graph.meta()[id];
 
-        if let Some(typed_observers) = self.listeners.get(meta.type_id()) {
-            let extern_id = &self.local_to_extern[id];
-            for obs in typed_observers {
-                obs.notify(extern_id.clone(), cycle);
-            }
+        let typed_observers = self
+            .listeners
+            .get(meta.type_id())
+            .ok_or(ReactorError::MissingListener)?;
+
+        let extern_id = &self.local_to_extern[id];
+        for obs in typed_observers {
+            obs.notify(extern_id.clone(), event);
         }
+
+        Ok(())
     }
 
-    pub fn resolve(&mut self, id: &I) {
-        let Some(&node_id) = self.extern_to_local.get(id) else {
-            panic!("Tried to resolve missing id: {id:?}")
-        };
+    pub fn resolve(&mut self, id: &I, resolution: Resolution) -> Result<(), ReactorError> {
+        let node_id = *self
+            .extern_to_local
+            .get(id)
+            .ok_or(ReactorError::ExternIdMismatch)?;
 
-        let mut queue = vec![(node_id, Event::Resolved)];
+        let mut queue = vec![(node_id, Event::Resolved(resolution))];
 
         for &nbr in &self.graph.adj()[node_id] {
             self.in_degree[nbr] = self.in_degree[nbr].saturating_sub(1);
@@ -84,9 +114,11 @@ where
             }
         }
 
-        for (id, cycle) in queue {
-            self.notify(id, cycle);
+        for (id, event) in queue {
+            self.notify(id, event)?;
         }
+
+        Ok(())
     }
 }
 
@@ -99,8 +131,8 @@ where
     I: ExternId,
     F: Fn(I, Event) + Send + Sync + 'static,
 {
-    fn notify(&self, id: I, cycle: Event) {
-        self(id, cycle);
+    fn notify(&self, id: I, event: Event) {
+        self(id, event);
     }
 }
 
@@ -109,8 +141,8 @@ where
     I: ExternId,
     O: Listener<I> + ?Sized,
 {
-    fn notify(&self, id: I, cycle: Event) {
-        (**self).notify(id, cycle);
+    fn notify(&self, id: I, event: Event) {
+        (**self).notify(id, event);
     }
 }
 
