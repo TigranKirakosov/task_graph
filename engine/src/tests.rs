@@ -1,30 +1,15 @@
 use core::*;
 use std::{
     any::TypeId,
+    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
 use action_orc_core::*;
 use action_orc_macros::orc;
+use local_macros::*;
 
 use super::reactor::*;
-
-macro_rules! declare_tags {
-    ($($type:ident),* $(,)?) => {
-        $(
-            struct $type;
-        )*
-    };
-}
-
-macro_rules! add_nodes {
-    ($graph:expr, $($tag:ident : $type:ty),* $(,)?) => {
-        $(
-            #[allow(unused)]
-            let $tag = $graph.add_node::<$type>();
-        )*
-    };
-}
 
 #[test]
 fn simple_graph() {
@@ -233,7 +218,8 @@ fn lifecycle_hooks() {
         A -> B -> C;
     );
 
-    let mut reactor = Reactor::from(g, |meta: &Meta| meta.type_name());
+    let mut reactor = Reactor::from(g);
+    let map = map_nodes(&reactor);
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
@@ -253,40 +239,49 @@ fn lifecycle_hooks() {
     assert_eq!(*lifecycle_log.lock().unwrap(), vec![]);
 
     reactor.init().unwrap();
-    assert_eq!(*lifecycle_log.lock().unwrap(), vec![("A", Event::Started)]);
+    assert_eq!(
+        *lifecycle_log.lock().unwrap(),
+        vec![(map.fetch("A"), Event::Started)]
+    );
 
-    reactor.resolve(&"A", Resolution::Finished).unwrap();
+    reactor
+        .resolve(map.fetch("A"), Resolution::Finished)
+        .unwrap();
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
-            ("A", Event::Started),
-            ("A", Event::Resolved(Resolution::Finished)),
-            ("B", Event::Started),
+            (map.fetch("A"), Event::Started),
+            (map.fetch("A"), Event::Resolved(Resolution::Finished)),
+            (map.fetch("B"), Event::Started),
         ]
     };
 
-    reactor.resolve(&"B", Resolution::Finished).unwrap();
+    reactor
+        .resolve(map.fetch("B"), Resolution::Finished)
+        .unwrap();
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
-            ("A", Event::Started),
-            ("A", Event::Resolved(Resolution::Finished)),
-            ("B", Event::Started),
-            ("B", Event::Resolved(Resolution::Finished)),
-            ("C", Event::Started),
+            (map.fetch("A"), Event::Started),
+            (map.fetch("A"), Event::Resolved(Resolution::Finished)),
+            (map.fetch("B"), Event::Started),
+            (map.fetch("B"), Event::Resolved(Resolution::Finished)),
+            (map.fetch("C"), Event::Started),
         ]
     };
 
-    reactor.resolve(&"C", Resolution::Finished).unwrap();
+    reactor
+        .resolve(map.fetch("C"), Resolution::Finished)
+        .unwrap();
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
-            ("A", Event::Started),
-            ("A", Event::Resolved(Resolution::Finished)),
-            ("B", Event::Started),
-            ("B", Event::Resolved(Resolution::Finished)),
-            ("C", Event::Started),
-            ("C", Event::Resolved(Resolution::Finished)),
+            (map.fetch("A"), Event::Started),
+            (map.fetch("A"), Event::Resolved(Resolution::Finished)),
+            (map.fetch("B"), Event::Started),
+            (map.fetch("B"), Event::Resolved(Resolution::Finished)),
+            (map.fetch("C"), Event::Started),
+            (map.fetch("C"), Event::Resolved(Resolution::Finished)),
         ]
     };
 }
@@ -321,7 +316,9 @@ fn nested_pipeline_composition() {
     let combat_bounds = room.merge(&combat, vec![enter]);
     let _loot_bounds = room.merge(&loot, combat_bounds.sinks);
 
-    let mut reactor = Reactor::from(room, |meta: &Meta| meta.type_name());
+    let mut reactor = Reactor::from(room);
+    mock_listeners!(reactor, Enter, SpawnEnemies, Fight, RollLoot, PickTreasure);
+    let map = map_nodes(&reactor);
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
@@ -332,21 +329,20 @@ fn nested_pipeline_composition() {
         .unwrap();
 
     reactor.init().unwrap();
-    reactor.resolve(&"Enter", Resolution::Finished).unwrap();
-    reactor
-        .resolve(&"SpawnEnemies", Resolution::Finished)
-        .unwrap();
-    reactor.resolve(&"Fight", Resolution::Finished).unwrap();
-    reactor.resolve(&"RollLoot", Resolution::Finished).unwrap();
+    for id in &["Enter", "SpawnEnemies", "Fight", "RollLoot"] {
+        reactor
+            .resolve(map.fetch(id), Resolution::Finished)
+            .unwrap();
+    }
 
     assert!(lifecycle_log.lock().unwrap().is_empty(), "Exit blocked");
-
     reactor
-        .resolve(&"PickTreasure", Resolution::Finished)
-        .unwrap(); // last task before Exit
+            .resolve(map.fetch("PickTreasure"), Resolution::Finished)
+            .unwrap() // last task before Exit
+    ;
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
-        vec![("Exit", Event::Started)]
+        vec![(map.fetch("Exit"), Event::Started)]
     );
 }
 
@@ -372,7 +368,9 @@ fn nested_pipeline_composition_macro() {
 
     let composed_room = room(&combat, &loot);
 
-    let mut reactor = Reactor::from(composed_room, |meta: &Meta| meta.type_name());
+    let mut reactor = Reactor::from(composed_room);
+    mock_listeners!(reactor, Enter, SpawnEnemies, Fight, RollLoot, PickTreasure);
+    let map = map_nodes(&reactor);
 
     let lifecycle_log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = lifecycle_log.clone();
@@ -383,21 +381,20 @@ fn nested_pipeline_composition_macro() {
         .unwrap();
 
     reactor.init().unwrap();
-    reactor.resolve(&"Enter", Resolution::Finished).unwrap();
-    reactor
-        .resolve(&"SpawnEnemies", Resolution::Finished)
-        .unwrap();
-    reactor.resolve(&"Fight", Resolution::Finished).unwrap();
-    reactor.resolve(&"RollLoot", Resolution::Finished).unwrap();
+    for id in &["Enter", "SpawnEnemies", "Fight", "RollLoot"] {
+        reactor
+            .resolve(map.fetch(id), Resolution::Finished)
+            .unwrap();
+    }
 
     assert!(lifecycle_log.lock().unwrap().is_empty(), "Exit blocked");
 
     reactor
-        .resolve(&"PickTreasure", Resolution::Finished)
+        .resolve(map.fetch("PickTreasure"), Resolution::Finished)
         .unwrap(); // last task before Exit
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
-        vec![("Exit", Event::Started)]
+        vec![(map.fetch("Exit"), Event::Started)]
     );
 }
 
@@ -534,4 +531,53 @@ fn standalone_embedding_macro() {
         .collect();
 
     assert_eq!(order, vec!["A", "B"]);
+}
+
+trait Mapping<K, V> {
+    fn fetch(&self, key: K) -> V;
+}
+
+impl Mapping<&'static str, NodeId> for HashMap<&'static str, NodeId> {
+    fn fetch(&self, key: &'static str) -> NodeId {
+        self.get(key).copied().unwrap()
+    }
+}
+
+fn map_nodes(reactor: &Reactor) -> HashMap<&'static str, NodeId> {
+    let mut s2i = HashMap::new();
+    for (id, meta) in reactor.node_meta() {
+        s2i.insert(meta.type_name(), id);
+    }
+
+    s2i
+}
+
+mod local_macros {
+    macro_rules! declare_tags {
+        ($($type:ident),* $(,)?) => {
+            $(
+                struct $type;
+            )*
+        };
+    }
+    pub(crate) use declare_tags;
+
+    macro_rules! add_nodes {
+        ($graph:expr, $($tag:ident : $type:ty),* $(,)?) => {
+            $(
+                #[allow(unused)]
+                let $tag = $graph.add_node::<$type>();
+            )*
+        };
+    }
+    pub(crate) use add_nodes;
+
+    macro_rules! mock_listeners {
+        ($reactor:expr, $($tag:ident),* $(,)?) => {
+            $(
+                $reactor.listen_for(std::any::TypeId::of::<$tag>(), |_, _| {}).unwrap();
+            )*
+        };
+    }
+    pub(crate) use mock_listeners;
 }
