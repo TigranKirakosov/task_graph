@@ -2,17 +2,7 @@ use action_orc_core::*;
 use std::sync::Arc;
 use std::{any::TypeId, collections::HashMap};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Event {
-    Started,
-    Resolved(Resolution),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Resolution {
-    Finished,
-    Cancelled,
-}
+use crate::{NodeStatus, Resolution, schedule::Schedule};
 
 #[derive(Debug)]
 pub enum ReactorError {
@@ -22,14 +12,16 @@ pub enum ReactorError {
 
 pub struct Reactor {
     pub(crate) graph: Graph,
-    pub(crate) in_degree: Vec<usize>,
+    pub(crate) schedule: Schedule,
     pub(crate) listeners: HashMap<TypeId, Vec<Box<dyn Listener>>>,
 }
 
 impl Reactor {
     pub fn from(graph: Graph) -> Self {
+        let schedule = Schedule::from(&graph);
+
         Self {
-            in_degree: graph.in_degree().to_vec(),
+            schedule,
             graph,
             listeners: HashMap::new(),
         }
@@ -37,13 +29,15 @@ impl Reactor {
 
     pub fn init(&mut self) -> Result<(), ReactorError> {
         for root in self.graph.sources().collect::<Vec<_>>() {
-            self.notify(root, Event::Started)?;
+            self.notify(root, NodeStatus::Started)?;
         }
         Ok(())
     }
 
     pub fn reset(&mut self) {
-        self.in_degree.copy_from_slice(self.graph.in_degree());
+        self.schedule
+            .in_degree
+            .copy_from_slice(self.graph.in_degree());
     }
 
     pub fn listen_for(
@@ -63,7 +57,7 @@ impl Reactor {
         Ok(())
     }
 
-    fn notify(&self, id: NodeId, event: Event) -> Result<(), ReactorError> {
+    fn notify(&self, id: NodeId, event: NodeStatus) -> Result<(), ReactorError> {
         let meta = &self.graph.meta()[id];
 
         let typed_observers = self
@@ -79,16 +73,9 @@ impl Reactor {
     }
 
     pub fn resolve(&mut self, id: NodeId, resolution: Resolution) -> Result<(), ReactorError> {
-        let mut queue = vec![(id, Event::Resolved(resolution))];
+        let node_statuses = self.schedule.advance(&self.graph, id, resolution);
 
-        for &nbr in &self.graph.adj()[id] {
-            self.in_degree[nbr] = self.in_degree[nbr].saturating_sub(1);
-            if self.in_degree[nbr] == 0 {
-                queue.push((nbr, Event::Started));
-            }
-        }
-
-        for (id, event) in queue {
+        for (id, event) in node_statuses {
             self.notify(id, event)?;
         }
 
@@ -101,14 +88,14 @@ impl Reactor {
 }
 
 pub trait Listener: Send + Sync + 'static {
-    fn notify(&self, id: NodeId, event: Event);
+    fn notify(&self, id: NodeId, event: NodeStatus);
 }
 
 impl<F> Listener for F
 where
-    F: Fn(NodeId, Event) + Send + Sync + 'static,
+    F: Fn(NodeId, NodeStatus) + Send + Sync + 'static,
 {
-    fn notify(&self, id: NodeId, event: Event) {
+    fn notify(&self, id: NodeId, event: NodeStatus) {
         self(id, event);
     }
 }
@@ -117,7 +104,7 @@ impl<O> Listener for Arc<O>
 where
     O: Listener + ?Sized,
 {
-    fn notify(&self, id: NodeId, event: Event) {
+    fn notify(&self, id: NodeId, event: NodeStatus) {
         (**self).notify(id, event);
     }
 }

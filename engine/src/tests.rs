@@ -9,7 +9,7 @@ use action_orc_core::*;
 use action_orc_macros::orc;
 use local_macros::*;
 
-use super::reactor::*;
+use crate::*;
 
 #[test]
 fn simple_graph() {
@@ -241,7 +241,7 @@ fn lifecycle_hooks() {
     reactor.init().unwrap();
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
-        vec![(map.fetch("A"), Event::Started)]
+        vec![(map.fetch("A"), NodeStatus::Started)]
     );
 
     reactor
@@ -250,9 +250,9 @@ fn lifecycle_hooks() {
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
-            (map.fetch("A"), Event::Started),
-            (map.fetch("A"), Event::Resolved(Resolution::Finished)),
-            (map.fetch("B"), Event::Started),
+            (map.fetch("A"), NodeStatus::Started),
+            (map.fetch("A"), NodeStatus::Resolved(Resolution::Finished)),
+            (map.fetch("B"), NodeStatus::Started),
         ]
     };
 
@@ -262,11 +262,11 @@ fn lifecycle_hooks() {
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
-            (map.fetch("A"), Event::Started),
-            (map.fetch("A"), Event::Resolved(Resolution::Finished)),
-            (map.fetch("B"), Event::Started),
-            (map.fetch("B"), Event::Resolved(Resolution::Finished)),
-            (map.fetch("C"), Event::Started),
+            (map.fetch("A"), NodeStatus::Started),
+            (map.fetch("A"), NodeStatus::Resolved(Resolution::Finished)),
+            (map.fetch("B"), NodeStatus::Started),
+            (map.fetch("B"), NodeStatus::Resolved(Resolution::Finished)),
+            (map.fetch("C"), NodeStatus::Started),
         ]
     };
 
@@ -276,12 +276,12 @@ fn lifecycle_hooks() {
     assert_eq! {
         *lifecycle_log.lock().unwrap(),
         vec![
-            (map.fetch("A"), Event::Started),
-            (map.fetch("A"), Event::Resolved(Resolution::Finished)),
-            (map.fetch("B"), Event::Started),
-            (map.fetch("B"), Event::Resolved(Resolution::Finished)),
-            (map.fetch("C"), Event::Started),
-            (map.fetch("C"), Event::Resolved(Resolution::Finished)),
+            (map.fetch("A"), NodeStatus::Started),
+            (map.fetch("A"), NodeStatus::Resolved(Resolution::Finished)),
+            (map.fetch("B"), NodeStatus::Started),
+            (map.fetch("B"), NodeStatus::Resolved(Resolution::Finished)),
+            (map.fetch("C"), NodeStatus::Started),
+            (map.fetch("C"), NodeStatus::Resolved(Resolution::Finished)),
         ]
     };
 }
@@ -342,7 +342,7 @@ fn nested_pipeline_composition() {
     ;
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
-        vec![(map.fetch("Exit"), Event::Started)]
+        vec![(map.fetch("Exit"), NodeStatus::Started)]
     );
 }
 
@@ -394,7 +394,7 @@ fn nested_pipeline_composition_macro() {
         .unwrap(); // last task before Exit
     assert_eq!(
         *lifecycle_log.lock().unwrap(),
-        vec![(map.fetch("Exit"), Event::Started)]
+        vec![(map.fetch("Exit"), NodeStatus::Started)]
     );
 }
 
