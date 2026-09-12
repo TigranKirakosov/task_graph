@@ -26,6 +26,14 @@ impl Graph {
         Self::default()
     }
 
+    pub fn from_meta(meta: Vec<Meta>) -> Self {
+        Self {
+            adj: vec![vec![]; meta.len()],
+            in_degree: vec![0; meta.len()],
+            meta,
+        }
+    }
+
     pub fn add_node<T: Marker>(&mut self) -> NodeId {
         self.meta.push(Meta::new::<T>());
         self.adj.push(vec![]);

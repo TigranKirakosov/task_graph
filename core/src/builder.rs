@@ -1,0 +1,69 @@
+use crate::{Graph, GraphBounds, GraphEntry, Meta, NodeId};
+
+pub struct GraphBuilder {
+    pub(crate) meta: Vec<Meta>,
+    pub(crate) edges: Vec<(NodeId, NodeId)>,
+}
+
+impl<'a> GraphBuilder {
+    pub fn new() -> Self {
+        Self {
+            meta: Vec::new(),
+            edges: Vec::new(),
+        }
+    }
+
+    /// Normalizes [GraphEntry] into unified [GraphBounds]
+    pub fn append(&mut self, entry: GraphEntry<'a>) -> GraphBounds {
+        match entry {
+            GraphEntry::Node(meta) => {
+                let node_id = self.meta.len();
+                self.meta.push(meta);
+
+                GraphBounds {
+                    sources: vec![node_id],
+                    sinks: vec![node_id],
+                }
+            }
+            GraphEntry::Graph(sub_graph) => self.merge_layout(sub_graph),
+        }
+    }
+
+    fn merge_layout(&mut self, sub_graph: &Graph) -> GraphBounds {
+        let offset = self.meta.len();
+
+        for meta in sub_graph.meta() {
+            self.meta.push(meta.clone());
+        }
+
+        for (from_local, neighbours) in sub_graph.adj().iter().enumerate() {
+            for &to_local in neighbours {
+                self.edges.push((from_local + offset, to_local + offset));
+            }
+        }
+
+        let sources = sub_graph.sources().map(|id| id + offset).collect();
+        let sinks = sub_graph.sinks().map(|id| id + offset).collect();
+
+        GraphBounds { sources, sinks }
+    }
+
+    /// Connects exit points of an upstream to the entry points of a downstream
+    pub fn connect(&mut self, upstream: &GraphBounds, downstream: &GraphBounds) {
+        for &from in &upstream.sinks {
+            for &to in &downstream.sources {
+                self.edges.push((from, to));
+            }
+        }
+    }
+
+    pub fn build(self) -> Graph {
+        let mut graph = Graph::from_meta(self.meta);
+
+        for (from, to) in self.edges {
+            graph.add_edge(from, to);
+        }
+
+        graph
+    }
+}

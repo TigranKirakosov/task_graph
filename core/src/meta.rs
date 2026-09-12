@@ -1,6 +1,11 @@
 use std::any::TypeId;
 
-pub trait Marker: 'static {}
+pub trait Marker: Sized + 'static {
+    fn meta() -> Meta {
+        Meta::new::<Self>()
+    }
+}
+
 impl<T: 'static> Marker for T {}
 
 #[derive(Clone)]
