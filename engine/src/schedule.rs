@@ -1,6 +1,7 @@
 use crate::{NodeStatus, Resolution};
 use action_orc_core::*;
 
+#[derive(Default)]
 pub(crate) struct Schedule {
     pub(crate) in_degree: Vec<usize>,
 }
@@ -10,6 +11,13 @@ impl Schedule {
         Self {
             in_degree: graph.in_degree().to_vec(),
         }
+    }
+
+    pub(crate) fn start(&self, graph: &Graph) -> Vec<(NodeId, NodeStatus)> {
+        graph
+            .sources()
+            .map(|source| (source, NodeStatus::Started))
+            .collect()
     }
 
     pub(crate) fn advance(

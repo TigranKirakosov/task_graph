@@ -10,6 +10,7 @@ pub enum ReactorError {
     UnknownTypeId,
 }
 
+#[derive(Default)]
 pub struct Reactor {
     pub(crate) graph: Graph,
     pub(crate) schedule: Schedule,
@@ -17,6 +18,10 @@ pub struct Reactor {
 }
 
 impl Reactor {
+    /// Build a reactor based on a configured graph.
+    ///
+    /// Once given a [Graph], reactor is tied to it
+    /// and will treat it as a static blueprint for underlying [Schedule].
     pub fn from(graph: Graph) -> Self {
         let schedule = Schedule::from(&graph);
 
@@ -27,10 +32,13 @@ impl Reactor {
         }
     }
 
+    /// Start underlying [Schedule] and notify [Listener]s which nodes
+    /// have started, that is, received control over schedule advancement.
     pub fn init(&mut self) -> Result<(), ReactorError> {
-        for root in self.graph.sources().collect::<Vec<_>>() {
-            self.notify(root, NodeStatus::Started)?;
+        for (node, status) in self.schedule.start(&self.graph) {
+            self.notify(node, status)?;
         }
+
         Ok(())
     }
 
@@ -40,6 +48,9 @@ impl Reactor {
             .copy_from_slice(self.graph.in_degree());
     }
 
+    /// Register [Listener] for [TypeId] lifecycle statuses.
+    ///
+    /// Will return [ReactorError::UnknownTypeId] on attempt to listen for non-present type within underlying [Graph].
     pub fn listen_for(
         &mut self,
         type_id: TypeId,
@@ -57,6 +68,25 @@ impl Reactor {
         Ok(())
     }
 
+    /// Communicate node resolution status to advance underlying [Schedule].
+    ///
+    /// Will return [ReactorError::MissingListener] if some node does not have registered [Listener]
+    /// to receive control over schedule advancement.
+    pub fn resolve(&mut self, id: NodeId, resolution: Resolution) -> Result<(), ReactorError> {
+        let node_statuses = self.schedule.advance(&self.graph, id, resolution);
+
+        for (id, event) in node_statuses {
+            self.notify(id, event)?;
+        }
+
+        Ok(())
+    }
+
+    /// An ordered mapping of underlying graph [NodeId]s to respective [Meta]
+    pub fn node_meta(&self) -> Vec<(NodeId, &Meta)> {
+        self.graph.meta().iter().enumerate().collect()
+    }
+
     fn notify(&self, id: NodeId, event: NodeStatus) -> Result<(), ReactorError> {
         let meta = &self.graph.meta()[id];
 
@@ -70,20 +100,6 @@ impl Reactor {
         }
 
         Ok(())
-    }
-
-    pub fn resolve(&mut self, id: NodeId, resolution: Resolution) -> Result<(), ReactorError> {
-        let node_statuses = self.schedule.advance(&self.graph, id, resolution);
-
-        for (id, event) in node_statuses {
-            self.notify(id, event)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn node_meta(&self) -> impl Iterator<Item = (NodeId, &Meta)> {
-        self.graph.meta().iter().enumerate()
     }
 }
 
